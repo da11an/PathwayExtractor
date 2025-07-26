@@ -1,0 +1,2 @@
+[console_scripts]
+pathway-extract = pathway_extractor.extractor:main
