@@ -1,13 +1,27 @@
+import re
+
+
+def test_row(row):
+    return len(row) != 8
+
+
 def parse_page_3_table(table: list) -> dict:
     results = []
 
     # Skip header row(s)
     for row in table:
-        if not row or row[0] == 'pw_contactname' or all(not cell.strip() for cell in row):
-            continue  # skip header and blank rows
+        if (
+            not row
+            or row[0] is None
+            or all(not (cell or '').strip() for cell in row)
+            or any(keyword in (row[0] or '').lower() for keyword in ['pw_contactname', 'assignments', 'student level', 'total'])
+            or not re.search(r'[A-Za-z]', row[0])  # must have letters
+            or re.search(r'[^\w\s\-\']', row[0])    # contains junk symbols
+        ):
+            continue
 
-        if len(row) != 8:
-            print(f"⚠️ Unexpected row length ({len(row)}): {row}")
+        if test_row(row):
+            print(f"⚠️ Unexpected row length (page 3) ({len(row)}): {row}")
             continue
 
         try:

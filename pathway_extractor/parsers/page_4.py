@@ -1,3 +1,10 @@
+import re
+
+
+def test_row(row):
+    return len(row) < 7
+
+
 def parse_page_4_table(table: list) -> dict:
     results = []
 
@@ -9,11 +16,15 @@ def parse_page_4_table(table: list) -> dict:
             or all(not (cell or '').strip() for cell in row)
             or 'pw_contactname' in (row[0] or '').lower()
             or 'student level' in (row[0] or '').lower()
+            or 'assignments' in (row[0] or '').lower()
+            or 'indicate the criteria' in (row[0] or '').lower()
+            or not re.search(r'[A-Za-z]', row[0])
+            or re.search(r'[^\w\s\-\']', row[0])
         ):
             continue
 
-        if len(row) < 7:
-            print(f"⚠️ Unexpected row length ({len(row)}): {row}")
+        if test_row(row):
+            print(f"⚠️ Unexpected row length (page 4) ({len(row)}): {row}")
             continue
 
         try:

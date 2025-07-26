@@ -1,13 +1,28 @@
+import re
+
+
+def test_row(row):
+    return len(row) < 6
+
+
 def parse_page_2_table(table: list) -> dict:
     results = []
 
     # Skip header row(s)
-    for ix, row in enumerate(table):
+    for row in table:
         if not row or row[0] == 'pw_contactname' or all(not cell.strip() for cell in row):
             continue  # skip header and blank rows
 
-        if len(row) < 6:
-            print(f"⚠️ Unexpected row length ({len(row)}): {row}")
+        # Skip junk names (e.g., , �, symbols)
+        if not re.search(r'[A-Za-z]', row[0]) or re.search(r'[^\w\s\-\']', row[0]):
+            continue  # skip weird row
+
+        # Skip junk names (e.g., , �, symbols)
+        if 'Assignments' in row[0]:
+            continue  # skip header weird row
+
+        if test_row(row):
+            print(f"⚠️ Unexpected row length (page 2) ({len(row)}): {row}")
             continue
 
         try:
@@ -25,6 +40,6 @@ def parse_page_2_table(table: list) -> dict:
             print(f"❌ Failed to parse row: {row}\nError: {e}")
             continue
 
-    results = results[1:]
+    # results = results[1:]
 
     return {"page2_data": results}

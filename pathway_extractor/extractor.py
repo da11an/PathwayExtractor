@@ -6,21 +6,23 @@ import pdfplumber
 from tqdm import tqdm
 import argparse
 
-from pathway_extractor.pdf_parsers.page_2 import parse_page_2_table
-from pathway_extractor.pdf_parsers.page_3 import parse_page_3_table
-from pathway_extractor.pdf_parsers.page_4 import parse_page_4_table
+from pathway_extractor.parsers.page_2 import parse_page_2_table, test_row as test_row_page_2
+from pathway_extractor.parsers.page_3 import parse_page_3_table, test_row as test_row_page_3
+from pathway_extractor.parsers.page_4 import parse_page_4_table, test_row as test_row_page_4
+from pathway_extractor.parsers.filename import parse_filename
 
 PAGES_TO_GRAB = [1, 2, 3]  # zero-based index for pages 2,3,4
 
 
 def parse_record(file_name: str, page_tables: dict) -> dict:
-    data = {
+    parsed = {
         "file": file_name,
+        **parse_filename(file_name),
+        **parse_page_2_table(page_tables.get("page2_text", [])),
+        **parse_page_3_table(page_tables.get("page3_text", [])),
+        **parse_page_4_table(page_tables.get("page4_text", [])),
     }
-    data.update(parse_page_2_table(page_tables.get("page2_text", [])))
-    data.update(parse_page_3_table(page_tables.get("page3_text", [])))
-    data.update(parse_page_4_table(page_tables.get("page4_text", [])))
-    return data
+    return parsed
 
 
 
@@ -40,11 +42,24 @@ def process_zip(zip_path: str, jsonl_out: str, max_files: int = None):
                     data = f.read()
                 with pdfplumber.open(io.BytesIO(data)) as pdf:
                     page_tables = {}
-                    for idx, label in zip(PAGES_TO_GRAB, ["page2_text", "page3_text", "page4_text"]):
+                    for idx, label, row_test in zip(
+                            PAGES_TO_GRAB,
+                            ["page2_text", "page3_text", "page4_text"],
+                            [test_row_page_2, test_row_page_3, test_row_page_4]
+                        ):
                         if idx < len(pdf.pages):
-                            table = pdf.pages[idx].extract_table(table_settings={
-                                "vertical_strategy": "text", 
-                                "horizontal_strategy": "text"}) or []
+                            table = pdf.pages[idx].extract_table(
+                                table_settings={
+                                    "vertical_strategy": "text", 
+                                    "horizontal_strategy": "text"
+                                }
+                            ) or []
+                            print("name", name)
+                            print("label", label)
+                            test_result = [row_test(row) for row in table]
+                            print(test_result)
+                            if not any(test_result):
+                                print("Try backup parsing method!!!")
                         else:
                             table = []
                         page_tables[label] = table
