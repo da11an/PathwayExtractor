@@ -1,0 +1,22 @@
+[project]
+name = "pathway-extractor"
+version = "0.1.0"
+description = "Extract pages 2–4 from PDFs inside a ZIP and export CSV/JSONL"
+authors = [{ name = "Your Name", email = "you@example.com" }]
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "pdfplumber",
+    "tqdm"
+]
+
+[project.scripts]
+pathway-extract = "pathway_extractor.extractor:main"
+
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["pathway_extractor"]
+exclude = ["venv_pathwayextractor"]
