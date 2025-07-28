@@ -1,3 +1,5 @@
 *.jsonl
 *.pyc
 *.png
+.venv/
+venv*/
