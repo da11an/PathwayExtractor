@@ -2,7 +2,10 @@ import re
 
 
 def test_row(row):
-    return len(row) < 6
+    if len(row) < 3 or len(row) > 9:
+        print(f"⚠️ Unexpected row length (page 2) ({len(row)}): {row}")
+        return True
+    return False
 
 
 def parse_page_2_table(table: list) -> dict:
@@ -21,8 +24,10 @@ def parse_page_2_table(table: list) -> dict:
         if 'Assignments' in row[0]:
             continue  # skip header weird row
 
+        if 'Total' == row[0]:
+            continue 
+
         if test_row(row):
-            print(f"⚠️ Unexpected row length (page 2) ({len(row)}): {row}")
             continue
 
         try:

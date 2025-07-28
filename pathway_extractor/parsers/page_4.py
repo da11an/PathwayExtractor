@@ -2,7 +2,10 @@ import re
 
 
 def test_row(row):
-    return len(row) < 7
+    if len(row) < 7:
+        print(f"⚠️ Unexpected row length (page 4) ({len(row)}): {row}")
+        return True
+    return False
 
 
 def parse_page_4_table(table: list) -> dict:
@@ -20,11 +23,11 @@ def parse_page_4_table(table: list) -> dict:
             or 'indicate the criteria' in (row[0] or '').lower()
             or not re.search(r'[A-Za-z]', row[0])
             or re.search(r'[^\w\s\-\']', row[0])
+            or 'Total' == row[0]
         ):
             continue
 
         if test_row(row):
-            print(f"⚠️ Unexpected row length (page 4) ({len(row)}): {row}")
             continue
 
         try:
