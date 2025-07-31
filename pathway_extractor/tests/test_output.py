@@ -12,12 +12,13 @@ def main(input_jsonl: str, output_jsonl: str):
         for line in f:
             record = json.loads(line)
 
+            class_info = record.get("class_info", {})
             page2 = record.get("page2_data", [])
             page3 = record.get("page3_data", [])
             page4 = record.get("page4_data", [])
 
             students = merge_student_data(page2, page3, page4)
-            summaries = [summarize_student(s) for s in students]
+            summaries = [summarize_student(s, class_info) for s in students]
             all_summaries.extend(summaries)
 
     with output_path.open("w", encoding="utf-8") as f:

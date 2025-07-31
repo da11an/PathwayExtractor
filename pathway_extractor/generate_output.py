@@ -29,7 +29,7 @@ def merge_student_data(page2_data, page3_data, page4_data):
     return list(merged.values())
 
 
-def summarize_student(student: dict) -> dict:
+def summarize_student(student: dict, class_info: dict) -> dict:
     name = student["student_name"]
 
     # Skill keys should match across levels and units
@@ -47,6 +47,7 @@ def summarize_student(student: dict) -> dict:
 
     return {
         "student_name": name,
+        "class_info": class_info,
         "level": level_data,
         "units": unit_data,
         "average_units_per_week": avg_units,

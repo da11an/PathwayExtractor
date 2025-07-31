@@ -1,3 +1,4 @@
 pdfplumber
 tqdm
 Pillow
+playwright
