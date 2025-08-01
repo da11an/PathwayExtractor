@@ -1,5 +1,7 @@
 import re
 
+from pathway_extractor.parsers.utils import clean_value
+
 
 def test_row(row):
     if len(row) < 3 or len(row) > 9:
@@ -8,7 +10,7 @@ def test_row(row):
     return False
 
 
-def parse_page_2_table(table: list) -> dict:
+def parse_page_2_table(table: list, headers: list) -> dict:
     results = []
 
     # Skip header row(s)
@@ -34,11 +36,10 @@ def parse_page_2_table(table: list) -> dict:
             name = row[0].strip()
             week_values = [(int(cell) if cell and cell.strip().isdigit() else 0) for cell in row[1:-1]]
             total = int(row[-1]) if row[-1] and row[-1].strip().isdigit() else sum(week_values)
+            keys = ["student_name"] + [f"week_{i}" for i in range(1, len(week_values) + 1)] + ["total"]
 
             results.append({
-                "student_name": name,
-                "weekly_submissions": week_values,
-                "total": total
+                k:clean_value(v) for k, v in zip(keys, row)
             })
 
         except Exception as e:
@@ -47,4 +48,4 @@ def parse_page_2_table(table: list) -> dict:
 
     # results = results[1:]
 
-    return {"page2_data": results}
+    return {"weekly_submissions": results}

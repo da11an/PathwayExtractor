@@ -65,6 +65,7 @@ def get_header_labels_and_positions(page, y_tolerance=4):
     wider than header, it may be split into multiple columns.
     """
     words = page.extract_words()
+
     if not words:
         return []
 
@@ -79,7 +80,7 @@ def get_header_labels_and_positions(page, y_tolerance=4):
     labels = []
     current_label = ""
     current_x0 = None
-    spacing_threshold = 15  # adjust if headers are spaced out or tight
+    spacing_threshold = 5  # adjust if headers are spaced out or tight
 
     for i, w in enumerate(header_words):
         text = w["text"]
@@ -126,7 +127,7 @@ def extract_largest_table(page, table_settings=None, idx=None):
 
     # Extract all tables from the page
     tables = page.extract_tables(table_settings=table_settings)
-    page.to_image(resolution=150).debug_tablefinder(table_settings=table_settings).save(f"debug_page{idx}.png")
+    page.to_image(resolution=200).debug_tablefinder(table_settings=table_settings).save(f"debug_page{idx}.png")
     
     if not tables:
         return []
@@ -140,13 +141,13 @@ def extract_largest_table(page, table_settings=None, idx=None):
     return largest_table or []
 
 
-def parse_record(file_name: str, page_tables: dict) -> dict:
+def parse_record(file_name: str, page_tables: dict, page_headers: dict) -> dict:
     parsed = {
         "file": file_name,
         **parse_filename(file_name),
-        **parse_page_2_table(page_tables.get("page2_text", [])),
-        **parse_page_3_table(page_tables.get("page3_text", [])),
-        **parse_page_4_table(page_tables.get("page4_text", [])),
+        **parse_page_2_table(page_tables.get("page2_text", []), page_headers.get("page2_text", [])),
+        **parse_page_3_table(page_tables.get("page3_text", []), page_headers.get("page3_text", [])),
+        **parse_page_4_table(page_tables.get("page4_text", []), page_headers.get("page4_text", [])),
     }
     return parsed
 
@@ -170,12 +171,14 @@ def process_zip(zip_path: str, jsonl_out: str, max_files: int = None, filename_f
                     data = f.read()
                 with pdfplumber.open(io.BytesIO(data)) as pdf:
                     page_tables = {}
+                    page_headers = {}
                     for idx, label, row_test in zip(
                             PAGES_TO_GRAB,
                             ["page2_text", "page3_text", "page4_text"],
                             [test_row_page_2, test_row_page_3, test_row_page_4]
                         ):
                         print("idx", idx, "len(pdf.pages)", len(pdf.pages), "label", label)
+                        labels = []
                         if idx < len(pdf.pages):
                             page, top_crop = find_correct_crop(pdf.pages[idx])
                             header_page, body_page = split_page_header_body(page, top_crop=top_crop)
@@ -183,44 +186,39 @@ def process_zip(zip_path: str, jsonl_out: str, max_files: int = None, filename_f
                             # Debugging
                             page.to_image(resolution=150).save(f"page_{idx}.png")
                             header_page.to_image(resolution=150).save(f"header_page_{idx}.png")
-                            body_page.to_image(resolution=150).save(f"body_page_{idx}.png")
 
-                            page.to_image(resolution=150) \
-                                .debug_tablefinder(table_settings={
-                                    "vertical_strategy": "text",
-                                    "horizontal_strategy": "text"
-                                }) \
-                                .save(f"debug_page{idx}.png")
-                            header_page.to_image(resolution=150) \
-                                .debug_tablefinder(table_settings={
-                                    "vertical_strategy": "text",
-                                    "horizontal_strategy": "text"
-                                }) \
-                                .save(f"debug_header_page{idx}.png")
-
-                            if label in ["page4_text"]:
+                            if label in ["page4_text", "page3_text", "page2_text"]:
 
                                 header_labels_and_positions = get_header_labels_and_positions(header_page)
-                                header_x0_positions = [x for _, x, _ in header_labels_and_positions]
-                                header_x1_positions = [x for _, _, x in header_labels_and_positions]
-                                header_x_positions = header_x0_positions[:2] + header_x1_positions[1:]
+                                labels, x0_positions, x1_positions = zip(*[(label, x0, x1) for label, x0, x1 in header_labels_and_positions])
+                                header_x_positions = x0_positions[:2] + x1_positions[1:]
+                                # Ensure minimum width for second column
+                                minimum_column_width = 17
+                                if len(header_x_positions) >= 3:
+                                    col2_width = header_x_positions[2] - header_x_positions[1]
+                                    if col2_width < minimum_column_width:
+                                        header_x_positions = list(header_x_positions)  # Convert to list for modification
+                                        header_x_positions[1] = header_x_positions[2] - minimum_column_width
 
                                 table_settings = {
-                                    "vertical_strategy": "text",
+                                    "vertical_strategy": "explicit",
                                     "horizontal_strategy": "text",
-                                    "explicit_vertical_lines": header_x_positions
+                                    "explicit_vertical_lines": header_x_positions,
                                 }
+
                                 table = extract_largest_table(body_page, table_settings=table_settings, idx=idx)
                             else:
                                 table = extract_largest_table(page, table_settings=None, idx=idx)
                             print("name", name)
                             print("label", label)
-                            [row_test(row) for row in table]
+                            # [row_test(row) for row in table]
                         else:
                             table = []
+                            labels = []
                         page_tables[label] = table
+                        page_headers[label] = labels
 
-                    rec = parse_record(name, page_tables)
+                    rec = parse_record(name, page_tables, page_headers)
                     jsonl_f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
             except Exception as e:
@@ -234,7 +232,7 @@ def process_zip(zip_path: str, jsonl_out: str, max_files: int = None, filename_f
 import argparse
 
 def main():
-    parser = argparse.ArgumentParser(description="Extract pages 2–4 from PDFs in a ZIP and write to JSONL.")
+    parser = argparse.ArgumentParser(description="Extract pages 2-4 from PDFs in a ZIP and write to JSONL.")
     parser.add_argument("zip_path", help="Path to the ZIP containing PDFs")
     parser.add_argument("--jsonl-out", default="out.jsonl", help="JSONL output file (default: out.jsonl)")
     parser.add_argument("--filename-filter", default=None, help="Optional substring to filter filenames before processing")

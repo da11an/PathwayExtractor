@@ -1,5 +1,7 @@
 import re
 
+from pathway_extractor.parsers.utils import clean_value, normalize_header
+
 
 def test_row(row):
     if len(row) < 7:
@@ -8,7 +10,7 @@ def test_row(row):
     return False
 
 
-def parse_page_4_table(table: list) -> dict:
+def parse_page_4_table(table: list, headers: list) -> dict:
     results = []
 
     for row in table:
@@ -31,23 +33,11 @@ def parse_page_4_table(table: list) -> dict:
             continue
 
         try:
-            name = row[0].strip()
-            skills = [(int(cell) if cell and cell.strip().lstrip('-').isdigit() else 0) for cell in row[1:7]]
-
-            results.append({
-                "student_name": name,
-                "skill_levels": {
-                    "grammar": skills[0],
-                    "listen": skills[1],
-                    "read": skills[2],
-                    "speak": skills[3],
-                    "vocab": skills[4],
-                    "write": skills[5]
-                }
-            })
+            normalized_headers = [normalize_header(header) for header in headers]
+            results.append({k:clean_value(v) for k, v in zip(normalized_headers, row)})
 
         except Exception as e:
             print(f"❌ Failed to parse row: {row}\nError: {e}")
             continue
 
-    return {"page4_data": results}
+    return {"skill_scores": results}

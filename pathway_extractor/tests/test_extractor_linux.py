@@ -6,6 +6,8 @@ zip_file = Path("/home/dallan/Downloads/OneDrive_1_7-25-2025.zip")
 jsonl_out = Path("test_output.jsonl")
 filename_filter = None
 # filename_filter = "Utah EC3 - Sandy, IP, Sunday, 03_00 PM - Hungate, Hungate.pdf"
+# filename_filter = "South America South Virtual EC3, V, Tuesday, 08_00 PM - Diaz"
+# filename_filter = "South America South Virtual EC3, V, Thursday, 08_30 PM - Fernandez, Leiva, Maru, Galindez, White, Del Hoyo, Gimenez Dilaccio.pdf"
 
 # Run the processor
 process_zip(str(zip_file), str(jsonl_out), max_files=50, filename_filter=filename_filter)

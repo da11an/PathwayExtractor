@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from pathway_extractor.generate_output import merge_student_data, summarize_student
+from pathway_extractor.parsers.utils import invert_student_data
 
 def main(input_jsonl: str, output_jsonl: str):
     input_path = Path(input_jsonl)
@@ -11,21 +11,14 @@ def main(input_jsonl: str, output_jsonl: str):
     with input_path.open("r", encoding="utf-8") as f:
         for line in f:
             record = json.loads(line)
-
-            class_info = record.get("class_info", {})
-            page2 = record.get("page2_data", [])
-            page3 = record.get("page3_data", [])
-            page4 = record.get("page4_data", [])
-
-            students = merge_student_data(page2, page3, page4)
-            summaries = [summarize_student(s, class_info) for s in students]
-            all_summaries.extend(summaries)
+            inverted = invert_student_data(record)
+            all_summaries.append(inverted)
 
     with output_path.open("w", encoding="utf-8") as f:
         for summary in all_summaries:
             f.write(json.dumps(summary, ensure_ascii=False) + "\n")
 
-    print(f"Wrote {len(all_summaries)} student summaries to {output_jsonl}")
+    print(f"Wrote {len(all_summaries)} class summaries to {output_jsonl}")
 
 
 if __name__ == "__main__":
