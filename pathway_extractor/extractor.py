@@ -152,10 +152,10 @@ def parse_record(file_name: str, page_tables: dict, page_headers: dict) -> dict:
     return parsed
 
 
-def process_zip(zip_path: str, jsonl_out: str, max_files: int = None, filename_filter: str = None):
-    with ZipFile(zip_path, "r") as zf, \
-         open(jsonl_out, "w", encoding="utf-8") as jsonl_f:
-
+def extract_records_from_zip(zip_path: str, max_files: int = None, filename_filter: str = None) -> list:
+    """Process all PDFs in a zip file and return list of extracted records."""
+    records = []
+    with ZipFile(zip_path, "r") as zf:
         pdf_names = [
             n for n in zf.namelist()
             if n.lower().endswith(".pdf") and (filename_filter is None or filename_filter in n)
@@ -188,7 +188,6 @@ def process_zip(zip_path: str, jsonl_out: str, max_files: int = None, filename_f
                             header_page.to_image(resolution=150).save(f"header_page_{idx}.png")
 
                             if label in ["page4_text", "page3_text", "page2_text"]:
-
                                 header_labels_and_positions = get_header_labels_and_positions(header_page)
                                 labels, x0_positions, x1_positions = zip(*[(label, x0, x1) for label, x0, x1 in header_labels_and_positions])
                                 header_x_positions = x0_positions[:2] + x1_positions[1:]
@@ -219,24 +218,26 @@ def process_zip(zip_path: str, jsonl_out: str, max_files: int = None, filename_f
                         page_headers[label] = labels
 
                     rec = parse_record(name, page_tables, page_headers)
-                    jsonl_f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                    records.append(rec)
 
             except Exception as e:
                 err_obj = {"file": name, "error": str(e)}
-                jsonl_f.write(json.dumps(err_obj, ensure_ascii=False) + "\n")
+                records.append(err_obj)
 
+    return records
+
+
+def write_records_to_jsonl(records: list, jsonl_out: str):
+    """Write a list of records to a JSONL file."""
+    with open(jsonl_out, "w", encoding="utf-8") as jsonl_f:
+        for rec in records:
+            jsonl_f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+
+def process_zip(zip_path: str, jsonl_out: str, max_files: int = None, filename_filter: str = None):
+    records = extract_records_from_zip(zip_path, max_files, filename_filter)
+    write_records_to_jsonl(records, jsonl_out)
     print(f"Done. JSONL output -> {jsonl_out}")
-
-
-
-import argparse
-
-def main():
-    parser = argparse.ArgumentParser(description="Extract pages 2-4 from PDFs in a ZIP and write to JSONL.")
-    parser.add_argument("zip_path", help="Path to the ZIP containing PDFs")
-    parser.add_argument("--jsonl-out", default="out.jsonl", help="JSONL output file (default: out.jsonl)")
-    parser.add_argument("--filename-filter", default=None, help="Optional substring to filter filenames before processing")
-
     args = parser.parse_args()
 
     process_zip(args.zip_path, args.jsonl_out, filename_filter=args.filename_filter)

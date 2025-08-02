@@ -118,6 +118,40 @@ def generate_progress_report_html(student_name, levels, units, weekly_units):
     return html
 
 
+def generate_message(class_record: dict, output_path: Path):
+    class_info = class_record.get("class_info", {})
+    class_file = class_record.get("file", "unknown filename")
+
+    students = class_record.get("students", {})
+    if not students:
+        print(f"⚠️ No students found in class: {class_file}")
+        return
+    else:
+        print(f"Generating reports for {len(students)} students in class: {class_file}")
+
+    for student_name, data in students.items():
+        weekly = data.get("weekly_submissions", {})
+        skill_units = data.get("submissions_by_skill", {})
+        levels = data.get("skill_scores", {})
+
+        weekly_units = {int(k.split("_")[1]): v for k, v in weekly.items() if k.startswith("week_")}
+        
+        html = generate_progress_report_html(
+            student_name=student_name,
+            levels=levels,
+            units=skill_units,
+            weekly_units=weekly_units,
+        )
+
+        # Create student output folder
+        student_dir = output_folder_structure({
+            "student_name": student_name,
+            "class_info": class_info
+        }, output_path)
+
+        save_html_as_png(html, student_dir / f"{student_name}.png", width=700, height=300)
+
+
 def main(summaries_jsonl: str, output_dir: str):
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -125,58 +159,7 @@ def main(summaries_jsonl: str, output_dir: str):
     with open(summaries_jsonl, "r", encoding="utf-8") as f:
         for line in f:
             class_record = json.loads(line)
-            class_info = class_record.get("class_info", {})
-            class_file = class_record.get("file", "unknown filename")
-
-            students = class_record.get("students", {})
-            if not students:
-                print(f"⚠️ No students found in class: {class_file}")
-                continue
-            else:
-                print(f"Generating reports for {len(students)} students in class: {class_file}")
-
-            for student_name, data in students.items():
-                weekly = data.get("weekly_submissions", {})
-                skill_units = data.get("submissions_by_skill", {})
-                levels = data.get("skill_scores", {})
-
-                weekly_units = {int(k.split("_")[1]): v for k, v in weekly.items() if k.startswith("week_")}
-                
-                html = generate_progress_report_html(
-                    student_name=student_name,
-                    levels=levels,
-                    units=skill_units,
-                    weekly_units=weekly_units,
-                )
-
-                # Create student output folder
-                student_dir = output_folder_structure({
-                    "student_name": student_name,
-                    "class_info": class_info
-                }, output_path)
-
-                save_html_as_png(html, student_dir / f"{student_name}.png", width=700, height=300)
-
-
-
-# def main(summaries_jsonl: str, output_dir: str):
-#     output_path = Path(output_dir)
-#     # Create the main output directory
-#     output_path.mkdir(parents=True, exist_ok=True)
-
-#     with open(summaries_jsonl, "r", encoding="utf-8") as f:
-#         for line in f:
-#             student = json.loads(line)
-#             print(student)
-#             html = generate_progress_report_html(
-#                 student_name=student["student_name"],
-#                 levels=student["level"],
-#                 units=student["units"],
-#                 weekly_units={i+1: val for i, val in enumerate(student["weekly_units"])},
-#             )
-#             student_dir = output_folder_structure(student, output_path)
-#             save_html_as_png(html, student_dir / f"{student['student_name']}.png", width=700, height=300)
-
+            generate_message(class_record, output_path)
 
 if __name__ == "__main__":
     import argparse
@@ -189,15 +172,3 @@ if __name__ == "__main__":
     main(args.summaries_jsonl, args.output_dir)
 
 # python pathway_extractor\tests\generate_messages.py student_summaries.jsonl --output-dir summary_images
-
-html = generate_progress_report_html(
-    student_name="Angie",
-    levels={"grammar": 0, "listening": 0, "reading": 0, "speaking": 0, "vocabulary": 2, "writing": 2},
-    units={"grammar": 11, "listening": 1, "reading": 3, "speaking": 0, "vocabulary": 6, "writing": 2},
-    weekly_units={1: 0, 2: 17, 3: 6, 4: 10, 5: 39, 6:12, 7:2},
-)
-
-# with open("angie_report.html", "w", encoding="utf-8") as f:
-#     f.write(html)
-
-save_html_as_png(html, "angie_report.png", width=700, height=300)
