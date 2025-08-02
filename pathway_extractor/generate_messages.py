@@ -61,10 +61,22 @@ def generate_progress_report_html(student_name, levels, units, weekly_units):
         </style>
     </head>
     <body>
+    """
+
+    html += f"""
+        <p class="emoji-note">😃 <strong>Hi, {student_name.split()[0]}!</strong> 
+        Here is the most recent update on units you have completed in the English learning app.
+        If you have a question about the chart and what it means, please pick up your phone and call me.</p>
+    """
+
+    html += f"Report for {student_name}"
+
+    html += """
         <table>
             <tr>
                 <th>Skill</th>
     """
+
     for skill in skills:
         html += f"<th>{skill}</th>"
     html += "</tr>"
@@ -107,10 +119,6 @@ def generate_progress_report_html(student_name, levels, units, weekly_units):
         <p class="bold">Your Average Units Completed Each Week of The Semester: 
             <span class="red bold">{average_weekly_units:.1f}</span>
         </p>
-
-        <p class="emoji-note">😃 <strong>Good morning, {student_name}!</strong> 
-        Here is the most recent update on units you have completed in the English learning app.
-        If you have a question about the chart and what it means, please pick up your phone and call me.</p>
     </body>
     </html>
     """
