@@ -13,7 +13,14 @@ def parse_filename(file_name: str) -> dict:
     def clean_region(region):
         region = region.replace("Virtual", "").strip()
         region = region.replace("AW - GHANA", "Africa West - Ghana")
+        region = region.replace("AW - COTE D'IVOIRE", "Africa West - Cote d'Ivoire")
+        region = region.replace("AW - LIBERIA", "Africa West - Liberia")
+        region = region.replace("AW - SIERRA LEONE", "Africa West - Sierra Leone")
         region = region.replace("EnglishConnect 3", "").strip()
+        region = region.replace("English Connect 3", "").strip()
+        region = region.replace("EC3", "").strip()
+        region = region.replace("EC 3", "").strip()
+        region = region.replace("ENGLISHCONNECT", "").strip()
         region = region.rstrip(" -")
         return region
 
