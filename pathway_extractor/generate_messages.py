@@ -18,7 +18,7 @@ def output_folder_structure(student, output_folder: Path):
     return student_dir
 
 
-def generate_progress_report_html(student_name, levels, units, weekly_units):
+def generate_progress_report_html(student_name: str, facilitators: list, levels: dict, units: dict, weekly_units: dict):
     skills = ["Grammar", "Listening", "Reading", "Speaking", "Vocabulary", "Writing"]
     weeks = list(range(1, len(weekly_units) + 1))
     max_week_val = max(weekly_units.values()) if weekly_units else 0
@@ -69,7 +69,7 @@ def generate_progress_report_html(student_name, levels, units, weekly_units):
         If you have a question about the chart and what it means, please pick up your phone and call me.</p>
     """
 
-    html += f"Report for {student_name}"
+    html += f'<div style="display: flex; justify-content: space-between; margin: 20px 0;"><div><strong>{student_name}</strong></div><div><small>{", ".join(facilitators)}</small></div></div>'
 
     html += """
         <table>
@@ -129,10 +129,13 @@ def generate_progress_report_html(student_name, levels, units, weekly_units):
 def generate_message(class_record: dict, output_path: Path):
     class_info = class_record.get("class_info", {})
     class_file = class_record.get("file", "unknown filename")
+    pdf_size = class_record.get("pdf_size")
 
     students = class_record.get("students", {})
-    if not students:
-        print(f"⚠️ No students found in class: {class_file}")
+    if not students and pdf_size > 150000: # set based on examining typical PDF sizes when there are no students
+        print(f"❌ No students found in class possibly due to parsing error: {class_file} (PDF size={pdf_size} bytes)")
+    elif not students:
+        print(f"⚠️ No students found in class: {class_file} (PDF size={pdf_size} bytes)")
         return
     else:
         print(f"Generating reports for {len(students)} students in class: {class_file}")
@@ -146,6 +149,7 @@ def generate_message(class_record: dict, output_path: Path):
         
         html = generate_progress_report_html(
             student_name=student_name,
+            facilitators=class_info.get("facilitators", []),
             levels=levels,
             units=skill_units,
             weekly_units=weekly_units,

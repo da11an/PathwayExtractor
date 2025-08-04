@@ -11,7 +11,11 @@ def parse_filename(file_name: str) -> dict:
     facilitators = [f.strip() for f in facilitators_part.split(",") if f.strip()]
 
     def clean_region(region):
-        return region.replace("Virtual", "").strip()
+        region = region.replace("Virtual", "").strip()
+        region = region.replace("AW - GHANA", "Africa West - Ghana")
+        region = region.replace("EnglishConnect 3", "").strip()
+        region = region.rstrip(" -")
+        return region
 
     # In-person format with location that may include commas
     in_person_match = re.match(
@@ -56,6 +60,38 @@ def parse_filename(file_name: str) -> dict:
             "region": clean_region(data["region"]),
             "location": None,
             "type": "Virtual",
+            "day": data["day"],
+            "time": data["time"],
+            "facilitators": facilitators
+        }}
+
+    # Generic Virtual fallback (e.g., "Brazil Virtual EnglishConnect 3, V, Wednesday, 08_00 PM")
+    generic_virtual_match = re.match(
+        r"^(?P<region>.+?),\s*V,\s*(?P<day>\w+),\s*(?P<time>[\d_]+ [AP]M)$",
+        metadata_part
+    )
+    if generic_virtual_match:
+        data = generic_virtual_match.groupdict()
+        return {"class_info": {
+            "region": clean_region(data["region"]),
+            "location": None,
+            "type": "Virtual",
+            "day": data["day"],
+            "time": data["time"],
+            "facilitators": facilitators
+        }}
+
+    # Generic In Person fallback (e.g., "Alicia Philippines Stake, IP, Wednesday, 08_30 PM")
+    generic_ip_match = re.match(
+        r"^(?P<region>.+?),\s*(IP|In\s?Person),\s*(?P<day>\w+),\s*(?P<time>[\d_]+ [AP]M)$",
+        metadata_part
+    )
+    if generic_ip_match:
+        data = generic_ip_match.groupdict()
+        return {"class_info": {
+            "region": clean_region(data["region"]),
+            "location": None,
+            "type": "In Person",
             "day": data["day"],
             "time": data["time"],
             "facilitators": facilitators

@@ -52,6 +52,7 @@ def invert_student_data(record):
 
     return {
         "file": record.get("file"),
+        "pdf_size": record.get("pdf_size"),
         "class_info": record.get("class_info"),
         "students": student_data
     }

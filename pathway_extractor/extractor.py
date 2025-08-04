@@ -108,7 +108,7 @@ def get_header_labels_and_positions(page, y_tolerance=4):
     return labels
 
 
-def extract_largest_table(page, table_settings=None, idx=None):
+def extract_largest_table(page, table_settings=None, idx=None, debug=False):
     """
     Extract the largest table from a page, prioritizing by row count then column count.
     
@@ -127,7 +127,8 @@ def extract_largest_table(page, table_settings=None, idx=None):
 
     # Extract all tables from the page
     tables = page.extract_tables(table_settings=table_settings)
-    page.to_image(resolution=200).debug_tablefinder(table_settings=table_settings).save(f"debug_page{idx}.png")
+    if debug:
+        page.to_image(resolution=200).debug_tablefinder(table_settings=table_settings).save(f"debug_page{idx}.png")
     
     if not tables:
         return []
@@ -141,18 +142,19 @@ def extract_largest_table(page, table_settings=None, idx=None):
     return largest_table or []
 
 
-def parse_record(file_name: str, page_tables: dict, page_headers: dict) -> dict:
+def parse_record(file_name: str, page_tables: dict, page_headers: dict, pdf_size: float) -> dict:
     parsed = {
         "file": file_name,
         **parse_filename(file_name),
         **parse_page_2_table(page_tables.get("page2_text", []), page_headers.get("page2_text", [])),
         **parse_page_3_table(page_tables.get("page3_text", []), page_headers.get("page3_text", [])),
         **parse_page_4_table(page_tables.get("page4_text", []), page_headers.get("page4_text", [])),
+        "pdf_size": pdf_size,
     }
     return parsed
 
 
-def extract_records_from_zip(zip_path: str, max_files: int = None, filename_filter: str = None) -> list:
+def extract_records_from_zip(zip_path: str, max_files: int = None, filename_filter: str = None, debug=False) -> list:
     """Process all PDFs in a zip file and return list of extracted records."""
     records = []
     with ZipFile(zip_path, "r") as zf:
@@ -167,6 +169,11 @@ def extract_records_from_zip(zip_path: str, max_files: int = None, filename_filt
 
         for name in tqdm(pdf_names, desc="Processing PDFs"):
             try:
+                # Get size of the individual PDF file within the zip
+                pdf_size = zf.getinfo(name).file_size
+                if debug:
+                    print("pdf_size", pdf_size)
+
                 with zf.open(name) as f:
                     data = f.read()
                 with pdfplumber.open(io.BytesIO(data)) as pdf:
@@ -177,15 +184,17 @@ def extract_records_from_zip(zip_path: str, max_files: int = None, filename_filt
                             ["page2_text", "page3_text", "page4_text"],
                             [test_row_page_2, test_row_page_3, test_row_page_4]
                         ):
-                        print("idx", idx, "len(pdf.pages)", len(pdf.pages), "label", label)
+                        if debug:
+                            print("idx", idx, "len(pdf.pages)", len(pdf.pages), "label", label)
                         labels = []
                         if idx < len(pdf.pages):
                             page, top_crop = find_correct_crop(pdf.pages[idx])
                             header_page, body_page = split_page_header_body(page, top_crop=top_crop)
 
                             # Debugging
-                            page.to_image(resolution=150).save(f"page_{idx}.png")
-                            header_page.to_image(resolution=150).save(f"header_page_{idx}.png")
+                            if debug:
+                                page.to_image(resolution=150).save(f"debug_raw_page_{idx}.png")
+                                header_page.to_image(resolution=150).save(f"debug_header_page_{idx}.png")
 
                             if label in ["page4_text", "page3_text", "page2_text"]:
                                 header_labels_and_positions = get_header_labels_and_positions(header_page)
@@ -205,23 +214,25 @@ def extract_records_from_zip(zip_path: str, max_files: int = None, filename_filt
                                     "explicit_vertical_lines": header_x_positions,
                                 }
 
-                                table = extract_largest_table(body_page, table_settings=table_settings, idx=idx)
+                                table = extract_largest_table(body_page, table_settings=table_settings, idx=idx, debug=debug)
                             else:
-                                table = extract_largest_table(page, table_settings=None, idx=idx)
-                            print("name", name)
-                            print("label", label)
-                            # [row_test(row) for row in table]
+                                table = extract_largest_table(page, table_settings=None, idx=idx, debug=debug)
+                            if debug:
+                                print("name", name)
+                                print("label", label)
                         else:
                             table = []
                             labels = []
                         page_tables[label] = table
                         page_headers[label] = labels
 
-                    rec = parse_record(name, page_tables, page_headers)
+                    rec = parse_record(name, page_tables, page_headers, pdf_size)
+                    if debug:
+                        print("rec", rec)
                     records.append(rec)
 
             except Exception as e:
-                err_obj = {"file": name, "error": str(e)}
+                err_obj = {"file": name, "error": str(e), "pdf_size": pdf_size}
                 records.append(err_obj)
 
     return records
