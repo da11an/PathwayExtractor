@@ -54,5 +54,6 @@ def get_zip_file(download_dir: Path) -> Path:
             if str(f) == str(selected_name):
                 zip_file = f
                 break
+    print("zip_file selected: ", zip_file)
 
     return zip_file
