@@ -30,9 +30,15 @@ def get_zip_file(download_dir: Path) -> Path:
         label = ttk.Label(dialog, text="Choose the ZIP file to process:")
         label.pack(pady=10, padx=10)
         
-        file_var = StringVar(value=str(zip_files[0]))
+        file_var = StringVar(value=zip_files[0].name)
         combo = ttk.Combobox(dialog, textvariable=file_var, values=[f.name for f in zip_files], state="readonly")
         combo.pack(pady=10, padx=10)
+        
+        # Bind selection event to update the variable
+        def on_combo_select(event):
+            file_var.set(combo.get())
+        
+        combo.bind('<<ComboboxSelected>>', on_combo_select)
         
         def on_select():
             dialog.quit()
@@ -48,12 +54,20 @@ def get_zip_file(download_dir: Path) -> Path:
         if not selected_name:
             print("No file selected. Exiting.")
             exit()
-        # Find matching zip file from list
+        
+        # Debug: print available files and selected name
+        print(f"Selected name: '{selected_name}'")
+        print("Available files:")
         for f in zip_files:
-            print(f, selected_name)
-            if str(f) == str(selected_name):
-                zip_file = f
-                break
+            print(f"  '{f.name}'")
+        
+        # Find matching zip file from list
+        try:
+            zip_file = next(f for f in zip_files if f.name == selected_name)
+        except StopIteration:
+            print(f"Error: Could not find file '{selected_name}' in the list of available files.")
+            print("This might be due to a mismatch between the dropdown values and actual filenames.")
+            exit()
     print("zip_file selected: ", zip_file)
 
     return zip_file
