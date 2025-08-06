@@ -5,7 +5,7 @@ def get_zip_file(download_dir: Path) -> Path:
     # - Single or double digit month: [0-9] or [0-9][0-9]
     # - Single or double digit day: [0-9] or [0-9][0-9]  
     # - 4-digit year: [0-9][0-9][0-9][0-9]
-    zip_files = list(download_dir.glob("*_[0-9]*-[0-9]*-[0-9][0-9][0-9][0-9].zip"))
+    zip_files = list(download_dir.glob("*_[0-9]*-[0-9]*-[0-9][0-9][0-9][0-9]*.zip"))
 
     if not zip_files:
         # If no matching files found, show full file dialog
