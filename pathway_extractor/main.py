@@ -28,10 +28,24 @@ print("End of class count by region report \n ------------------------- \n")
 
 class_student_records = [invert_student_data(record) for record in class_page_records]
 
-output_dir = downloads_dir / zip_file.name.replace(".zip", "")
+# Ensure cross-platform compatibility for output directory creation
+zip_filename = zip_file.name
+output_dir_name = zip_filename.replace(".zip", "")
+output_dir = downloads_dir / output_dir_name
+
+# Debug information for troubleshooting
+print(f"📁 Creating output directory:")
+print(f"   Downloads dir: {downloads_dir}")
+print(f"   Zip filename: {zip_filename}")
+print(f"   Output dir name: {output_dir_name}")
+print(f"   Full output path: {output_dir}")
+
 if output_dir.exists():
+    print(f"   Removing existing directory: {output_dir}")
     rmtree(output_dir) # remove old results
+
 output_dir.mkdir(parents=True, exist_ok=True)
+print(f"   ✅ Output directory created: {output_dir}")
 
 for record in class_student_records:
     generate_message(record, output_dir)
