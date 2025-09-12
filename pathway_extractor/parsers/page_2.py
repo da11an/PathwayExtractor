@@ -19,7 +19,7 @@ def parse_page_2_table(table: list, headers: list) -> dict:
             continue  # skip header and blank rows
 
         # Skip junk names (e.g., , �, symbols)
-        if not re.search(r'[A-Za-z]', row[0]) or re.search(r'[^\w\s\-\']', row[0]):
+        if not re.search(r'[A-Za-z]', row[0]) or re.search(r'[^\w\s\-\'\.]', row[0]):
             continue  # skip weird row
 
         # Skip junk names (e.g., , �, symbols)

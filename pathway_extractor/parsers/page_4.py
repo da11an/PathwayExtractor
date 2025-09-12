@@ -24,7 +24,7 @@ def parse_page_4_table(table: list, headers: list) -> dict:
             or 'assignments' in (row[0] or '').lower()
             or 'indicate the criteria' in (row[0] or '').lower()
             or not re.search(r'[A-Za-z]', row[0])
-            or re.search(r'[^\w\s\-\']', row[0])
+            or re.search(r'[^\w\s\-\'\.]', row[0])
             or 'Total' == row[0]
         ):
             continue
