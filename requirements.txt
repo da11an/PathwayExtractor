@@ -2,3 +2,4 @@ pdfplumber
 tqdm
 Pillow
 playwright
+matplotlib

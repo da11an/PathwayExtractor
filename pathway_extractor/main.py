@@ -4,6 +4,7 @@ from pathway_extractor.extractor import extract_records_from_zip
 from pathway_extractor.generate_messages import generate_message
 from pathway_extractor.parsers.utils import invert_student_data
 from pathway_extractor.utils import get_zip_file
+from pathway_extractor.analytics import calculate_class_averages, plot_class_averages_paginated
 from collections import Counter
 
 
@@ -27,6 +28,10 @@ for region, count in regions.items():
 print("End of class count by region report \n ------------------------- \n")
 
 class_student_records = [invert_student_data(record) for record in class_page_records]
+averages = calculate_class_averages(class_student_records)
+figures = plot_class_averages_paginated(averages, classes_per_page=55)
+for i, fig in enumerate(figures):
+    fig.savefig(f'class_averages_page_{i+1:02d}.png', dpi=300, bbox_inches='tight')
 
 # Ensure cross-platform compatibility for output directory creation
 zip_filename = zip_file.name
