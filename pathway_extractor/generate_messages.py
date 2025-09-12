@@ -65,8 +65,8 @@ def generate_progress_report_html(student_name: str, facilitators: list, levels:
 
     html += f"""
         <p class="emoji-note">😃 <strong>Hi, {student_name.split()[0]}!</strong> 
-        Here is the most recent update on units you have completed in the English learning app.
-        If you have a question about the chart and what it means, please pick up your phone and call me.</p>
+        Here is the most recent update on units you have completed in the Proficiency section of the EC3 learning app.
+        "Press forward with faith in every footstep" to reach your goals.</p>
     """
 
     html += f'<div style="display: flex; justify-content: space-between; margin: 20px 0;"><div><strong>{student_name}</strong></div><div><small>{", ".join(facilitators)}</small></div></div>'
@@ -116,7 +116,7 @@ def generate_progress_report_html(student_name: str, facilitators: list, levels:
     html += f"""
         </table>
 
-        <p class="bold">Your Average Units Completed Each Week of The Semester: 
+        <p class="bold">Your Average Units Completed Each Week of The Block: 
             <span class="red bold">{average_weekly_units:.1f}</span>
         </p>
     </body>

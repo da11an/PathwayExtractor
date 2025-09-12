@@ -36,7 +36,8 @@ for i, fig in enumerate(figures):
 # Ensure cross-platform compatibility for output directory creation
 zip_filename = zip_file.name
 output_dir_name = zip_filename.replace(".zip", "")
-output_dir = downloads_dir / output_dir_name
+output_location = Path.home() / "OneDrive" / "EC3 Learner Images"
+output_dir = output_location / output_dir_name
 
 # Debug information for troubleshooting
 print(f"📁 Creating output directory:")
