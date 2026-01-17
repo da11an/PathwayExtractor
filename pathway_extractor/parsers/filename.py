@@ -25,8 +25,9 @@ def parse_filename(file_name: str) -> dict:
         return region
 
     # In-person format with location that may include commas
+    # Time can have underscores, hyphens, or colons: 10_00 AM, 10-00 AM, 10:00 AM
     in_person_match = re.match(
-        r"^(?P<region>.+?)\s+EC3?\s*-\s*(?P<location>.+?),\s*(?P<type>IP|In\s?Person),\s*(?P<day>\w+),\s*(?P<time>[\d_]+ [AP]M)$",
+        r"^(?P<region>.+?)\s+EC3?\s*-\s*(?P<location>.+?),\s*(?P<type>IP|In\s?Person),\s*(?P<day>\w+),\s*(?P<time>[\d_\-:]+ [AP]M)$",
         metadata_part
     )
     if in_person_match:
@@ -41,8 +42,9 @@ def parse_filename(file_name: str) -> dict:
         }}
 
     # Virtual format with comma-separated elements (e.g., Utah EC3, V, ...)
+    # Time can have underscores, hyphens, or colons: 10_00 AM, 10-00 AM, 10:00 AM
     virtual_comma_match = re.match(
-        r"^(?P<region>.+?)\s+EC3?,\s*[A-Z],\s*(?P<day>\w+),\s*(?P<time>[\d_]+ [AP]M)$",
+        r"^(?P<region>.+?)\s+EC3?,\s*[A-Z],\s*(?P<day>\w+),\s*(?P<time>[\d_\-:]+ [AP]M)$",
         metadata_part
     )
     if virtual_comma_match:
@@ -57,8 +59,9 @@ def parse_filename(file_name: str) -> dict:
         }}
 
     # Virtual format with "Virtual EC3" phrase (e.g., South America Virtual EC3, V, ...)
+    # Time can have underscores, hyphens, or colons: 10_00 AM, 10-00 AM, 10:00 AM
     virtual_phrase_match = re.match(
-        r"^(?P<region>.+?)\s+Virtual\s+EC3?,\s*[A-Z],\s*(?P<day>\w+),\s*(?P<time>[\d_]+ [AP]M)$",
+        r"^(?P<region>.+?)\s+Virtual\s+EC3?,\s*[A-Z],\s*(?P<day>\w+),\s*(?P<time>[\d_\-:]+ [AP]M)$",
         metadata_part
     )
     if virtual_phrase_match:
@@ -73,8 +76,9 @@ def parse_filename(file_name: str) -> dict:
         }}
 
     # Generic Virtual fallback (e.g., "Brazil Virtual EnglishConnect 3, V, Wednesday, 08_00 PM")
+    # Time can have underscores, hyphens, or colons: 10_00 AM, 10-00 AM, 10:00 AM
     generic_virtual_match = re.match(
-        r"^(?P<region>.+?),\s*V,\s*(?P<day>\w+),\s*(?P<time>[\d_]+ [AP]M)$",
+        r"^(?P<region>.+?),\s*V,\s*(?P<day>\w+),\s*(?P<time>[\d_\-:]+ [AP]M)$",
         metadata_part
     )
     if generic_virtual_match:
@@ -89,8 +93,9 @@ def parse_filename(file_name: str) -> dict:
         }}
 
     # Generic In Person fallback (e.g., "Alicia Philippines Stake, IP, Wednesday, 08_30 PM")
+    # Time can have underscores, hyphens, or colons: 10_00 AM, 10-00 AM, 10:00 AM
     generic_ip_match = re.match(
-        r"^(?P<region>.+?),\s*(IP|In\s?Person),\s*(?P<day>\w+),\s*(?P<time>[\d_]+ [AP]M)$",
+        r"^(?P<region>.+?),\s*(IP|In\s?Person),\s*(?P<day>\w+),\s*(?P<time>[\d_\-:]+ [AP]M)$",
         metadata_part
     )
     if generic_ip_match:

@@ -21,8 +21,11 @@ def output_folder_structure(student, output_folder: Path):
 def generate_progress_report_html(student_name: str, facilitators: list, levels: dict, units: dict, weekly_units: dict):
     skills = ["Grammar", "Listening", "Reading", "Speaking", "Vocabulary", "Writing"]
     weeks = list(range(1, len(weekly_units) + 1))
-    max_week_val = max(weekly_units.values()) if weekly_units else 0
-    average_weekly_units = round(sum(weekly_units.values()) / max(len(weekly_units), 1), 1)
+    # Ensure all values are integers (handle cases where clean_value might return strings)
+    weekly_units_ints = {k: int(v) if isinstance(v, (int, str)) and str(v).strip().lstrip('-').isdigit() else 0 
+                         for k, v in weekly_units.items()}
+    max_week_val = max(weekly_units_ints.values()) if weekly_units_ints else 0
+    average_weekly_units = round(sum(weekly_units_ints.values()) / max(len(weekly_units_ints), 1), 1)
 
     html = """
     <html>
@@ -106,7 +109,7 @@ def generate_progress_report_html(student_name: str, facilitators: list, levels:
     # Weekly Units row
     html += '<tr><td class="bold">Units</td>'
     for week in weeks:
-        val = weekly_units.get(week, 0)
+        val = weekly_units_ints.get(week, 0)
         if val == max_week_val and val > 0:
             html += f'<td><span class="red">{val}</span></td>'
         else:
@@ -145,7 +148,16 @@ def generate_message(class_record: dict, output_path: Path):
         skill_units = data.get("submissions_by_skill", {})
         levels = data.get("skill_scores", {})
 
-        weekly_units = {int(k.split("_")[1]): v for k, v in weekly.items() if k.startswith("week_")}
+        # Extract weekly units and ensure values are integers
+        weekly_units = {}
+        for k, v in weekly.items():
+            if k.startswith("week_"):
+                week_num = int(k.split("_")[1])
+                # Convert to int, defaulting to 0 if conversion fails
+                try:
+                    weekly_units[week_num] = int(v) if not isinstance(v, int) else v
+                except (ValueError, TypeError):
+                    weekly_units[week_num] = 0
         
         html = generate_progress_report_html(
             student_name=student_name,

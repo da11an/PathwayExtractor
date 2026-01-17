@@ -55,16 +55,72 @@ main.py # Entry point to run everything
 
 ---
 
-## How to Run
+## Setup and Installation
 
-From vscode just hit the play button for main.py. (It is necessary to have your python environment (including running `post_install.py`) created and activated prior to running main.py.) 
+### 1. Create and Activate Virtual Environment
 
+**On Linux/macOS:**
 ```bash
-python main.py
+python3 -m venv venv_pathwayextractor
+source venv_pathwayextractor/bin/activate
 ```
 
+**On Windows:**
+```bash
+python -m venv venv_pathwayextractor
+venv_pathwayextractor\Scripts\activate
+```
 
-By default, main.py will attempt to load a zip file as entered in the file. If no ZIP is found, a file dialog will open to let the user choose one.
+### 2. Install Dependencies
+
+**Important:** You must install the package in editable mode so Python can find the `pathway_extractor` module:
+
+```bash
+pip install -e .
+pip install -r requirements.txt
+```
+
+- `pip install -e .` installs the package itself in editable mode (required for imports to work)
+- `pip install -r requirements.txt` installs all additional dependencies (Pillow, playwright, matplotlib, etc.)
+
+### 3. Install Playwright Browsers
+
+After installing dependencies, run the post-install script to set up Playwright browsers:
+
+```bash
+python post_install.py
+```
+
+This installs the browser binaries needed for HTML-to-PNG conversion.
+
+---
+
+## How to Run
+
+### Option 1: From VS Code
+1. Ensure your virtual environment is activated (see Setup above)
+2. Open `pathway_extractor/main.py` in VS Code
+3. Click the play button (▶️) to run the script
+
+### Option 2: From Command Line
+
+**On Linux/macOS:**
+```bash
+source venv_pathwayextractor/bin/activate
+python pathway_extractor/main.py
+```
+
+**On Windows:**
+```bash
+venv_pathwayextractor\Scripts\activate
+python pathway_extractor\main.py
+```
+
+### Running the Script
+
+By default, `main.py` will attempt to load a ZIP file from your Downloads directory. If no ZIP is found, a file dialog will open to let you choose one.
+
+**Note:** Make sure your virtual environment is activated before running the script. The script requires all dependencies to be installed and Playwright browsers to be set up (via `post_install.py`).
 
 ```
 output/
@@ -79,3 +135,11 @@ Each PNG contains:
 - Assessed level and units completed by skill
 - Weekly unit completion
 - Average units per week
+
+# Running the full process
+
+1. Access PDFs from Pathway Sharepoint: https://churchofjesuschrist.sharepoint.com/sites/BYUPW-MissionaryServices
+2. Menu: EnglishConnect > Learner Progress Report > Learner Progress Report
+3. Scroll to the bottom, then select all, download as zip
+4. Run program
+5. Write results to OneDrive: https://1drv.ms/f/c/947f531afae4cdba/EoN7uOBe7wRFi-foQjGAbYIByzNZLm2eFM2IpJ47KEHqVg

@@ -10,12 +10,12 @@ def test_row(row):
     return False
 
 
-def parse_page_2_table(table: list, headers: list) -> dict:
+def parse_page_2_table(table: list, headers: list, target_header: str = "pw_contactname") -> dict:
     results = []
 
     # Skip header row(s)
     for row in table:
-        if not row or row[0] == 'pw_contactname' or all(not cell.strip() for cell in row):
+        if not row or (row[0] and str(row[0]).strip().lower() == target_header.lower()) or all(not cell.strip() for cell in row):
             continue  # skip header and blank rows
 
         # Skip junk names (e.g., , �, symbols)

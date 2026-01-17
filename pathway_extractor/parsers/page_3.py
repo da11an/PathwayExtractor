@@ -10,10 +10,12 @@ def test_row(row):
     return False
 
 
-def parse_page_3_table(table: list, headers: list) -> dict:
+def parse_page_3_table(table: list, headers: list, target_header: str = "pw_contactname") -> dict:
     results = []
     normalized_headers = [normalize_header(header) for header in headers]
-    if normalized_headers[0] == "pw_contactname":
+    # Normalize the target_header for comparison
+    normalized_target = normalize_header(target_header)
+    if normalized_headers and normalized_headers[0] == normalized_target:
         normalized_headers[0] = "student_name"
 
     skill_fields = ["grammar", "listen", "read", "speak", "vocabulary", "write"]

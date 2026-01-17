@@ -7,6 +7,7 @@ def normalize_header(header):
     normalized = re.sub(r'\W+', '', header.strip().lower() if header else '')
     substitutions = {
         "pw_contactname": "student_name",
+        "name": "student_name",  # Map 'name' to 'student_name' for consistency
         "grammar": "grammar",
         "vocab": "vocabulary",
         "read": "reading",
@@ -43,7 +44,8 @@ def invert_student_data(record):
 
     # Skill scores
     for item in record.get("skill_scores", []):
-        name = item.pop("student_name", None)
+        # Try both 'student_name' and 'name' for compatibility (normalize_header should handle this, but keep fallback)
+        name = item.pop("student_name", None) or item.pop("name", None)
         if name:
             student_data[name]["skill_scores"] = item
 

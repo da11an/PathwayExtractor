@@ -1,0 +1,60 @@
+{
+  "format_name": "format_v2",
+  "description": "New PDF format - update page indices and extraction settings as needed",
+  "pages": [
+    {
+      "page_index": 0,
+      "label": "page2_text",
+      "parser_module": "pathway_extractor.parsers.page_2",
+      "parser_function": "parse_page_2_table",
+      "test_function": "test_row",
+      "extraction": {
+        "target_header": "Name",
+        "start_top": 300,
+        "left_bound": 650,
+        "right_bound": 1400,
+        "max_shift": 150,
+        "delta": 20,
+        "header_height": 50,
+        "use_explicit_vertical_lines": true,
+        "minimum_column_width": 29
+      }
+    },
+    {
+      "page_index": 1,
+      "label": "page3_text",
+      "parser_module": "pathway_extractor.parsers.page_3",
+      "parser_function": "parse_page_3_table",
+      "test_function": "test_row",
+      "extraction": {
+        "target_header": "Name",
+        "start_top": 300,
+        "left_bound": 0,
+        "right_bound": 900,
+        "max_shift": 150,
+        "delta": 20,
+        "header_height": 50,
+        "use_explicit_vertical_lines": true,
+        "minimum_column_width": 17
+      }
+    },
+    {
+      "page_index": 1,
+      "label": "page4_text",
+      "parser_module": "pathway_extractor.parsers.page_4",
+      "parser_function": "parse_page_4_table",
+      "test_function": "test_row",
+      "extraction": {
+        "target_header": "Name",
+        "start_top": 300,
+        "left_bound": 900,
+        "right_bound": 1800,
+        "max_shift": 150,
+        "delta": 20,
+        "header_height": 50,
+        "use_explicit_vertical_lines": true,
+        "minimum_column_width": 17
+      }
+    }
+  ]
+}

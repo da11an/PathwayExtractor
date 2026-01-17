@@ -1,0 +1,54 @@
+{
+  "format_name": "format_v1",
+  "description": "Original PDF format - pages 2, 3, 4 (zero-based indices 1, 2, 3)",
+  "pages": [
+    {
+      "page_index": 1,
+      "label": "page2_text",
+      "parser_module": "pathway_extractor.parsers.page_2",
+      "parser_function": "parse_page_2_table",
+      "test_function": "test_row",
+      "extraction": {
+        "target_header": "pw_contactname",
+        "start_top": 177,
+        "max_shift": 150,
+        "delta": 20,
+        "header_height": 25,
+        "use_explicit_vertical_lines": true,
+        "minimum_column_width": 17
+      }
+    },
+    {
+      "page_index": 2,
+      "label": "page3_text",
+      "parser_module": "pathway_extractor.parsers.page_3",
+      "parser_function": "parse_page_3_table",
+      "test_function": "test_row",
+      "extraction": {
+        "target_header": "pw_contactname",
+        "start_top": 177,
+        "max_shift": 150,
+        "delta": 20,
+        "header_height": 25,
+        "use_explicit_vertical_lines": true,
+        "minimum_column_width": 17
+      }
+    },
+    {
+      "page_index": 3,
+      "label": "page4_text",
+      "parser_module": "pathway_extractor.parsers.page_4",
+      "parser_function": "parse_page_4_table",
+      "test_function": "test_row",
+      "extraction": {
+        "target_header": "pw_contactname",
+        "start_top": 177,
+        "max_shift": 150,
+        "delta": 20,
+        "header_height": 25,
+        "use_explicit_vertical_lines": true,
+        "minimum_column_width": 17
+      }
+    }
+  ]
+}
