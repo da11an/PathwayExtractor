@@ -3,3 +3,4 @@
 *.png
 .venv/
 venv*/
+debug_output/

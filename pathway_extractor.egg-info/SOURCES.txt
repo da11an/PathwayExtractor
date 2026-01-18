@@ -2,6 +2,7 @@ README.md
 pyproject.toml
 pathway_extractor/__init__.py
 pathway_extractor/analytics.py
+pathway_extractor/config_loader.py
 pathway_extractor/extractor.py
 pathway_extractor/generate_messages.py
 pathway_extractor/html_to_png.py

@@ -1,0 +1,55 @@
+{
+  "description": "Configuration for the config generator - defines what table titles to look for",
+  "table_titles": [
+    {
+      "title_text": "Assignments Submitted by Week",
+      "label": "page2_text",
+      "parser_module": "pathway_extractor.parsers.page_2",
+      "parser_function": "parse_page_2_table",
+      "test_function": "test_row",
+      "expected_first_column_header": ["Name", "EC3EnrollmentStatus", "pw_contactname"],
+      "hints": {
+        "typical_start_top": 300,
+        "typical_header_height": 50,
+        "max_shift": 150,
+        "delta": 20,
+        "minimum_column_width": 29
+      }
+    },
+    {
+      "title_text": "Assignments Submitted by Skill",
+      "label": "page3_text",
+      "parser_module": "pathway_extractor.parsers.page_3",
+      "parser_function": "parse_page_3_table",
+      "test_function": "test_row",
+      "expected_first_column_header": ["Name", "EC3EnrollmentStatus", "pw_contactname"],
+      "hints": {
+        "typical_start_top": 300,
+        "typical_header_height": 50,
+        "max_shift": 150,
+        "delta": 20,
+        "minimum_column_width": 17
+      }
+    },
+    {
+      "title_text": "Student Level by Skill",
+      "label": "page4_text",
+      "parser_module": "pathway_extractor.parsers.page_4",
+      "parser_function": "parse_page_4_table",
+      "test_function": "test_row",
+      "expected_first_column_header": ["Name", "EC3EnrollmentStatus", "pw_contactname"],
+      "hints": {
+        "typical_start_top": 300,
+        "typical_header_height": 50,
+        "max_shift": 150,
+        "delta": 20,
+        "minimum_column_width": 17
+      }
+    }
+  ],
+  "defaults": {
+    "use_explicit_vertical_lines": true,
+    "title_to_table_gap": 30,
+    "table_width_estimate_padding": 100
+  }
+}

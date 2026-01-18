@@ -15,7 +15,8 @@ def parse_page_3_table(table: list, headers: list, target_header: str = "pw_cont
     normalized_headers = [normalize_header(header) for header in headers]
     # Normalize the target_header for comparison
     normalized_target = normalize_header(target_header)
-    if normalized_headers and normalized_headers[0] == normalized_target:
+    # Map first column to student_name if it matches target or is a known name column variant
+    if normalized_headers and (normalized_headers[0] == normalized_target or normalized_headers[0] == "ec3enrollmentstatus"):
         normalized_headers[0] = "student_name"
 
     skill_fields = ["grammar", "listen", "read", "speak", "vocabulary", "write"]

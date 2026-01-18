@@ -2,6 +2,7 @@ import re
 import io
 import json
 from zipfile import ZipFile
+from pathlib import Path
 import pdfplumber
 from tqdm import tqdm
 import argparse
@@ -146,7 +147,7 @@ def get_header_labels_and_positions(page, y_tolerance=4):
     return labels
 
 
-def extract_largest_table(page, table_settings=None, label=None, debug=False):
+def extract_largest_table(page, table_settings=None, label=None, debug=False, debug_dir=None):
     """
     Extract the largest table from a page, prioritizing by row count then column count.
     
@@ -155,6 +156,7 @@ def extract_largest_table(page, table_settings=None, label=None, debug=False):
         table_settings: Settings for table extraction
         label: Label for debug image filename (optional)
         debug: Whether to save debug images
+        debug_dir: Directory to save debug images (Path object or None)
         
     Returns:
         List of rows (table data) or empty list if no tables found
@@ -167,9 +169,9 @@ def extract_largest_table(page, table_settings=None, label=None, debug=False):
 
     # Extract all tables from the page
     tables = page.extract_tables(table_settings=table_settings)
-    if debug and label is not None:
-        debug_tablefinder_filename = f"debug_tablefinder_{label}.png"
-        page.to_image(resolution=200).debug_tablefinder(table_settings=table_settings).save(debug_tablefinder_filename)
+    if debug and label is not None and debug_dir is not None:
+        debug_tablefinder_filename = debug_dir / f"debug_tablefinder_{label}.png"
+        page.to_image(resolution=200).debug_tablefinder(table_settings=table_settings).save(str(debug_tablefinder_filename))
         print(f"   💾 Saved table finder debug image: {debug_tablefinder_filename}")
     
     if not tables:
@@ -224,7 +226,8 @@ def extract_records_from_zip(
     max_files: int = None, 
     filename_filter: str = None, 
     debug: bool = True,
-    config: Optional[ExtractionConfig] = None
+    config: Optional[ExtractionConfig] = None,
+    debug_dir: Optional[Path] = None
 ) -> list:
     """
     Process all PDFs in a zip file and return list of extracted records.
@@ -235,6 +238,7 @@ def extract_records_from_zip(
         filename_filter: Filter PDFs by filename substring (None for all)
         debug: Enable debug output
         config: ExtractionConfig object. If None, loads default config.
+        debug_dir: Directory to save debug artifacts (Path object or None)
     
     Returns:
         List of extracted records
@@ -295,18 +299,18 @@ def extract_records_from_zip(
                                 print(f"   Searching for target header: '{page_config.target_header}'")
                                 
                                 # Save original full page for reference (only once per page index, but include label for uniqueness)
-                                if debug:
-                                    debug_original_filename = f"debug_original_{label}.png"
-                                    original_page.to_image(resolution=150).save(debug_original_filename)
+                                if debug and debug_dir is not None:
+                                    debug_original_filename = debug_dir / f"debug_original_{label}.png"
+                                    original_page.to_image(resolution=150).save(str(debug_original_filename))
                                     print(f"   💾 Saved original full page: {debug_original_filename}")
                                 
                                 # Save horizontally cropped page if bounds are set
-                                if debug and (page_config.left_bound is not None or page_config.right_bound is not None):
+                                if debug and debug_dir is not None and (page_config.left_bound is not None or page_config.right_bound is not None):
                                     left = page_config.left_bound if page_config.left_bound is not None else 0
                                     right = page_config.right_bound if page_config.right_bound is not None else original_page.width
                                     horizontally_cropped = original_page.within_bbox((left, 0, right, original_page.height))
-                                    debug_horizontal_filename = f"debug_horizontal_crop_{label}_left{int(left)}_right{int(right)}.png"
-                                    horizontally_cropped.to_image(resolution=150).save(debug_horizontal_filename)
+                                    debug_horizontal_filename = debug_dir / f"debug_horizontal_crop_{label}_left{int(left)}_right{int(right)}.png"
+                                    horizontally_cropped.to_image(resolution=150).save(str(debug_horizontal_filename))
                                     print(f"   💾 Saved horizontally cropped page: {debug_horizontal_filename}")
                                 
                                 # Use config values for crop finding with horizontal bounds
@@ -324,23 +328,24 @@ def extract_records_from_zip(
                                     if debug:
                                         print(f"⚠️  Warning: Could not find target header '{page_config.target_header}' on page {idx}")
                                         # Still save debug images even when crop fails to help diagnose
-                                        left = page_config.left_bound if page_config.left_bound is not None else 0
-                                        right = page_config.right_bound if page_config.right_bound is not None else original_page.width
-                                        failed_crop = original_page.within_bbox((left, page_config.start_top, right, original_page.height))
-                                        debug_failed_filename = f"debug_failed_crop_{label}_start{int(page_config.start_top)}.png"
-                                        failed_crop.to_image(resolution=150).save(debug_failed_filename)
-                                        print(f"   💾 Saved failed crop attempt: {debug_failed_filename}")
+                                        if debug_dir is not None:
+                                            left = page_config.left_bound if page_config.left_bound is not None else 0
+                                            right = page_config.right_bound if page_config.right_bound is not None else original_page.width
+                                            failed_crop = original_page.within_bbox((left, page_config.start_top, right, original_page.height))
+                                            debug_failed_filename = debug_dir / f"debug_failed_crop_{label}_start{int(page_config.start_top)}.png"
+                                            failed_crop.to_image(resolution=150).save(str(debug_failed_filename))
+                                            print(f"   💾 Saved failed crop attempt: {debug_failed_filename}")
                                     table = []
                                     labels = []
                                 else:
                                     # Save the cropped page at top_crop_original for inspection
-                                    if debug:
+                                    if debug and debug_dir is not None:
                                         # Recreate the exact crop that was found for inspection
                                         left = page_config.left_bound if page_config.left_bound is not None else 0
                                         right = page_config.right_bound if page_config.right_bound is not None else original_page.width
                                         cropped_for_inspection = original_page.within_bbox((left, top_crop_original, right, original_page.height))
-                                        debug_cropped_filename = f"debug_cropped_{label}_top{int(top_crop_original)}.png"
-                                        cropped_for_inspection.to_image(resolution=150).save(debug_cropped_filename)
+                                        debug_cropped_filename = debug_dir / f"debug_cropped_{label}_top{int(top_crop_original)}.png"
+                                        cropped_for_inspection.to_image(resolution=150).save(str(debug_cropped_filename))
                                         print(f"   💾 Saved cropped page at top={top_crop_original:.1f}: {debug_cropped_filename}")
                                     
                                     # The page returned by find_correct_crop is cropped starting from top_crop_original
@@ -360,13 +365,13 @@ def extract_records_from_zip(
                                     )
 
                                     # Debugging - save all crop stages
-                                    if debug:
-                                        debug_raw_filename = f"debug_raw_{label}.png"
-                                        debug_header_filename = f"debug_header_{label}.png"
-                                        debug_body_filename = f"debug_body_{label}.png"
-                                        page.to_image(resolution=150).save(debug_raw_filename)
-                                        header_page.to_image(resolution=150).save(debug_header_filename)
-                                        body_page.to_image(resolution=150).save(debug_body_filename)
+                                    if debug and debug_dir is not None:
+                                        debug_raw_filename = debug_dir / f"debug_raw_{label}.png"
+                                        debug_header_filename = debug_dir / f"debug_header_{label}.png"
+                                        debug_body_filename = debug_dir / f"debug_body_{label}.png"
+                                        page.to_image(resolution=150).save(str(debug_raw_filename))
+                                        header_page.to_image(resolution=150).save(str(debug_header_filename))
+                                        body_page.to_image(resolution=150).save(str(debug_body_filename))
                                         print(f"   💾 Saved crop stages: {debug_raw_filename}, {debug_header_filename}, {debug_body_filename}")
 
                                     if page_config.use_explicit_vertical_lines:
@@ -386,12 +391,12 @@ def extract_records_from_zip(
                                                 "horizontal_strategy": "text",
                                                 "explicit_vertical_lines": header_x_positions,
                                             }
-                                            table = extract_largest_table(body_page, table_settings=table_settings, label=label, debug=debug)
+                                            table = extract_largest_table(body_page, table_settings=table_settings, label=label, debug=debug, debug_dir=debug_dir)
                                         else:
                                             # No headers found, fall back to text-based extraction
-                                            table = extract_largest_table(body_page, table_settings=None, label=label, debug=debug)
+                                            table = extract_largest_table(body_page, table_settings=None, label=label, debug=debug, debug_dir=debug_dir)
                                     else:
-                                        table = extract_largest_table(body_page, table_settings=None, label=label, debug=debug)
+                                        table = extract_largest_table(body_page, table_settings=None, label=label, debug=debug, debug_dir=debug_dir)
                                     
                                     if debug:
                                         print("name", name)
@@ -400,16 +405,17 @@ def extract_records_from_zip(
                                 if debug:
                                     print(f"   ⚠️  Skipping: Page index {idx} is out of range (PDF has {len(pdf.pages)} pages, indices 0-{len(pdf.pages)-1})")
                                     # Still save a placeholder debug image to show this config was processed
-                                    try:
-                                        # Try to get the last available page as a reference
-                                        if len(pdf.pages) > 0:
-                                            ref_page = pdf.pages[-1]
-                                            debug_skipped_filename = f"debug_skipped_{label}_page{idx}_not_found.png"
-                                            ref_page.to_image(resolution=150).save(debug_skipped_filename)
-                                            print(f"   💾 Saved skipped page indicator: {debug_skipped_filename}")
-                                    except Exception as e:
-                                        if debug:
-                                            print(f"   Could not save skipped page debug image: {e}")
+                                    if debug_dir is not None:
+                                        try:
+                                            # Try to get the last available page as a reference
+                                            if len(pdf.pages) > 0:
+                                                ref_page = pdf.pages[-1]
+                                                debug_skipped_filename = debug_dir / f"debug_skipped_{label}_page{idx}_not_found.png"
+                                                ref_page.to_image(resolution=150).save(str(debug_skipped_filename))
+                                                print(f"   💾 Saved skipped page indicator: {debug_skipped_filename}")
+                                        except Exception as e:
+                                            if debug:
+                                                print(f"   Could not save skipped page debug image: {e}")
                                 table = []
                                 labels = []
                             
