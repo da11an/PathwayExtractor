@@ -22,13 +22,19 @@ def find_correct_crop(page, target="pw_contactname", start_top=177, max_shift=15
     
     Args:
         page: pdfplumber page object
-        target: First word to search for
+        target: First word to search for, or list of possible headers to check
         start_top: Initial Y position to start searching
         max_shift: Maximum pixels to shift up/down
         delta: Step size for shifting
         left_bound: Left X boundary (None = 0, use full page)
         right_bound: Right X boundary (None = page.width, use full page)
     """
+    # Normalize target to a list
+    if isinstance(target, str):
+        targets = [target]
+    else:
+        targets = target
+    
     # Use full page width if bounds not specified
     left = left_bound if left_bound is not None else 0
     right = right_bound if right_bound is not None else page.width
@@ -46,11 +52,14 @@ def find_correct_crop(page, target="pw_contactname", start_top=177, max_shift=15
         text = cropped.extract_text()
         if not text:
             continue
-        first_word = text.strip().split()[0]
-        if first_word == target:
-            # Return the cropped page and the top position
-            # Note: top is the Y position in the original page coordinates
-            return cropped, top
+        first_word = text.strip().split()[0] if text.strip() else ""
+        
+        # Check if first word matches any of the target headers
+        for t in targets:
+            if first_word == t or (t.lower() in first_word.lower() or first_word.lower() in t.lower()):
+                # Return the cropped page and the top position
+                # Note: top is the Y position in the original page coordinates
+                return cropped, top
 
     return None, None  # target not found
 
@@ -314,9 +323,11 @@ def extract_records_from_zip(
                                     print(f"   💾 Saved horizontally cropped page: {debug_horizontal_filename}")
                                 
                                 # Use config values for crop finding with horizontal bounds
+                                # Use all expected headers, not just target_header
+                                target_headers = getattr(page_config, 'expected_headers', [page_config.target_header])
                                 page, top_crop_original = find_correct_crop(
                                     original_page,
-                                    target=page_config.target_header,
+                                    target=target_headers,  # Pass list of all expected headers
                                     start_top=page_config.start_top,
                                     max_shift=page_config.max_shift,
                                     delta=page_config.delta,

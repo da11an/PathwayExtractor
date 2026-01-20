@@ -10,9 +10,13 @@
       "test_function": "test_row",
       "extraction": {
         "target_header": "EC3EnrollmentStatus",
-        "start_top": 300,
-        "left_bound": 65,
-        "right_bound": 639,
+        "expected_first_column_header": [
+          "EC3EnrollmentStatus",
+          "pw_contactname"
+        ],
+        "start_top": 250,
+        "left_bound": 75,
+        "right_bound": 847,
         "max_shift": 150,
         "delta": 20,
         "header_height": 50,
@@ -28,9 +32,14 @@
       "test_function": "test_row",
       "extraction": {
         "target_header": "EC3EnrollmentStatus",
+        "expected_first_column_header": [
+          "Name",
+          "EC3EnrollmentStatus",
+          "pw_contactname"
+        ],
         "start_top": 300,
         "left_bound": 0,
-        "right_bound": 933,
+        "right_bound": 991,
         "max_shift": 150,
         "delta": 20,
         "header_height": 50,
@@ -46,8 +55,13 @@
       "test_function": "test_row",
       "extraction": {
         "target_header": "EC3EnrollmentStatus",
+        "expected_first_column_header": [
+          "Name",
+          "EC3EnrollmentStatus",
+          "pw_contactname"
+        ],
         "start_top": 300,
-        "left_bound": 933,
+        "left_bound": 991,
         "right_bound": 1920,
         "max_shift": 150,
         "delta": 20,

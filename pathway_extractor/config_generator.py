@@ -349,6 +349,318 @@ def find_table_below_title(page, title_y: float, title_x_center: float,
     }
 
 
+def is_complete_header_match(text: str, expected: str) -> bool:
+    """
+    Check if text is a complete match for expected header.
+    Returns True only if it's a complete match, False if it's incomplete.
+    
+    Args:
+        text: The text to check
+        expected: The expected header text
+    
+    Returns:
+        True if complete match, False if incomplete or no match
+    """
+    text_lower = text.lower().strip()
+    expected_lower = expected.lower().strip()
+    
+    # Exact match (case-insensitive)
+    if text_lower == expected_lower:
+        return True
+    
+    # Text contains expected - but only accept if text is at least as long as expected
+    # This ensures we have the complete header, not just a partial word
+    if expected_lower in text_lower:
+        # Text must be at least as long as expected (allowing for spaces between words)
+        # If expected is a single word, text should be that word or longer
+        # If expected is multiple words, text should contain all words
+        expected_words = expected_lower.split()
+        text_words = text_lower.split()
+        
+        # Check if all expected words are present in text
+        if all(any(exp_word in txt_word or txt_word in exp_word for txt_word in text_words) 
+               for exp_word in expected_words):
+            # All words present - this is likely complete
+            return True
+    
+    # Text is part of expected - this is incomplete, reject it
+    if text_lower in expected_lower and text_lower != expected_lower:
+        return False
+    
+    return False
+
+
+def find_table_bounds_by_expanding_from_title(page, title_info: Dict[str, float],
+                                             page_width: float, expected_headers: List[str],
+                                             gap: float = 30, max_search_distance: float = 200) -> Optional[Dict[str, float]]:
+    """
+    Find table bounds by iteratively expanding horizontally from the title center
+    until finding one of the expected first column headers.
+    
+    Algorithm:
+    1. Get the width of the table title
+    2. Set initial horizontal search bounds to the width of the table title, centered on title center
+    3. Search BELOW the title position only
+    4. If full column header text is found, use these as the horizontal bounds
+    5. Otherwise, expand the width by 10% of the table title width, remaining centered
+    6. Repeat until header found or page bounds reached
+    
+    Args:
+        page: pdfplumber page object
+        title_info: Dict with title position info (left, right, x_center, bottom/y_center)
+        page_width: Width of the page
+        expected_headers: List of possible first column header names to look for
+        gap: Expected gap between title and table header
+        max_search_distance: Maximum distance to search below title for header
+    
+    Returns:
+        Dict with table bounds (left, right, top, width, found_header) or None
+    """
+    title_x_center = title_info["x_center"]
+    title_y = title_info["bottom"]  # Use bottom as the Y position
+    title_left = title_info["left"]
+    title_right = title_info["right"]
+    title_width = title_right - title_left
+    
+    print(f"      VERIFY in expansion function: Title text='{title_info.get('text', 'N/A')}', x_center={title_x_center:.1f}, width={title_width:.1f}")
+    
+    # Step 3: Limit searches to just BELOW the table title position
+    # Use a small gap to start searching, but ensure we're definitely below the title
+    # The gap should be small enough to catch the header row but large enough to skip any title continuation
+    # Start searching a bit earlier (lower y) to ensure we capture the full header row (not cutting off the top)
+    search_gap = min(gap, 15)  # Cap at 15 points to avoid starting too far down
+    # Start searching earlier to catch the top of the header row
+    # Start at title_y + a small offset (5-10 points) to be just below title but catch header top
+    search_start_y = title_y + 5  # Start 5 points below title to catch header row top
+    search_end_y = title_y + search_gap + max_search_distance
+    
+    print(f"      Searching for header below title: title_y={title_y:.1f}, search_start={search_start_y:.1f} to {search_end_y:.1f}")
+    
+    # Step 4 & 5: Set initial horizontal search bounds to the width of the table title
+    # The search bounds are always centered on the center of the table title
+    # Start with a smaller initial width to avoid starting too wide
+    initial_width = max(title_width * 0.5, 100)  # Start with 50% of title width or minimum 100 points
+    expansion_increment = title_width * 0.10  # 10% of title width
+    
+    words = page.extract_words()
+    
+    # Step 6: Expand iteratively until header found or page bounds reached
+    current_width = initial_width
+    max_iterations = 100  # Safety limit
+    iteration = 0
+    
+    # Track the best match found across all iterations (in case we need to expand to include it)
+    best_match_word = None
+    best_match_text = None
+    best_match_y = float('inf')
+    
+    while iteration < max_iterations:
+        # Calculate current bounds, always centered on title center
+        current_left = max(0, title_x_center - current_width / 2)
+        current_right = min(page_width, title_x_center + current_width / 2)
+        
+        # Check if we've hit page bounds on both sides
+        if current_left <= 0 and current_right >= page_width:
+            break
+        
+        if iteration < 5 or iteration % 10 == 0:
+            print(f"      Expansion iteration {iteration}: width={current_width:.1f}, left={current_left:.1f}, right={current_right:.1f}")
+        
+        # Find words in the header row area BELOW the title and within current bounds
+        header_words = []
+        for word in words:
+            # Step 3: Only search BELOW the title
+            if search_start_y <= word["top"] <= search_end_y:
+                word_center_x = (word["x0"] + word["x1"]) / 2
+                # Check if word is within current horizontal bounds
+                if current_left <= word_center_x <= current_right:
+                    header_words.append(word)
+        
+        if header_words:
+            # Sort by x position to get leftmost words first
+            header_words.sort(key=lambda w: w["x0"])
+            
+            if iteration < 5 or iteration % 10 == 0:
+                word_texts = [w["text"] for w in header_words[:5]]
+                print(f"        Found {len(header_words)} words in header area, leftmost: {word_texts}")
+                print(f"        Checking against all expected headers: {expected_headers}")
+            
+            # Check if any word/phrase matches expected headers (complete match only)
+            # We check ALL items in expected_first_column_header, not just the first one
+            # We want to find the header row closest to the title (topmost match)
+            matched_word = None
+            matched_text = None
+            matched_y = float('inf')  # Track the Y position of matches to find the topmost
+            
+            for word in header_words:
+                # Try to find adjacent words that might form a complete header
+                # Look for words on the same line (within y tolerance) that are within current bounds
+                same_line_words = [w for w in words 
+                                 if abs(w["top"] - word["top"]) <= 5  # Same line
+                                 and current_left <= (w["x0"] + w["x1"]) / 2 <= current_right]
+                same_line_words.sort(key=lambda w: w["x0"])
+                
+                # Find the index of our current word in the same_line_words list
+                word_idx = None
+                for idx, w in enumerate(same_line_words):
+                    if abs(w["x0"] - word["x0"]) < 1 and abs(w["top"] - word["top"]) < 1:
+                        word_idx = idx
+                        break
+                
+                if word_idx is None:
+                    continue
+                
+                # Try building phrases of increasing length starting from this word
+                for phrase_length in range(1, min(5, len(same_line_words) - word_idx + 1)):
+                    phrase_words = same_line_words[word_idx:word_idx+phrase_length]
+                    phrase_text = " ".join(w["text"].strip() for w in phrase_words)
+                    
+                    # Check if this phrase matches ANY of the expected headers (complete match only)
+                    # We check ALL expected headers, not just the first one
+                    # Prefer matches that are closer to the title (higher Y = closer to top)
+                    for expected in expected_headers:
+                        if is_complete_header_match(phrase_text, expected):
+                            # Only accept this match if it's closer to the title than previous matches
+                            word_y = phrase_words[0]["top"]
+                            if word_y < matched_y:  # Smaller Y = closer to top = closer to title
+                                matched_word = phrase_words[0]
+                                matched_text = phrase_text
+                                matched_y = word_y
+                                # Also update best match
+                                if word_y < best_match_y:
+                                    best_match_word = matched_word
+                                    best_match_text = matched_text
+                                    best_match_y = word_y
+                                if iteration < 5:
+                                    print(f"        Found complete match: '{phrase_text}' matches expected '{expected}' at x={matched_word['x0']:.1f}, y={word_y:.1f}")
+                            break  # Found a match for this expected header, stop checking other expected headers for this phrase
+                    
+                    # Continue checking other phrase lengths and words to find the topmost match
+                    # Don't break here - we want to check all words to find the best match
+                
+                # Fallback: Check single word match (must be complete)
+                # Check ALL expected headers for this single word
+                word_text = word["text"].strip()
+                for expected in expected_headers:
+                    if is_complete_header_match(word_text, expected):
+                        # Only accept this match if it's closer to the title than previous matches
+                        word_y = word["top"]
+                        if word_y < matched_y:  # Smaller Y = closer to top = closer to title
+                            matched_word = word
+                            matched_text = word_text
+                            matched_y = word_y
+                            # Also update best match
+                            if word_y < best_match_y:
+                                best_match_word = matched_word
+                                best_match_text = matched_text
+                                best_match_y = word_y
+                            if iteration < 5:
+                                print(f"        Found complete single-word match: '{word_text}' matches expected '{expected}' at x={matched_word['x0']:.1f}, y={word_y:.1f}")
+                        break  # Found a match for this expected header, stop checking other expected headers
+                
+                # Continue checking all words to find the topmost (closest to title) match
+                # Don't break here - we want to check all words to find the best match
+            
+            # Step 4: If full column header text is found, verify the header's left edge is in bounds
+            # Use best_match if we found one, otherwise use current iteration's match
+            candidate_match = best_match_word if best_match_word is not None else matched_word
+            candidate_text = best_match_text if best_match_text is not None else matched_text
+            
+            if candidate_match is not None:
+                header_left = candidate_match["x0"]
+                header_right = candidate_match["x1"]
+                
+                # Check if the header's left edge is within the current search bounds
+                if header_left < current_left:
+                    # Header starts to the left of our search window - need to expand leftward
+                    if iteration < 5 or iteration % 10 == 0:
+                        print(f"      Found header '{candidate_text}' at x={header_left:.1f}, but left edge is outside current bounds (left={current_left:.1f})")
+                        print(f"      Continuing expansion to include header's left edge...")
+                    # Continue expanding - the best_match is already saved, so we'll check again next iteration
+                else:
+                    # Header's left edge is within bounds - we can use these bounds
+                    final_left = current_left
+                    final_right = current_right
+                    table_top = candidate_match["top"]
+                    
+                    print(f"      Found complete header '{candidate_text}' at x={header_left:.1f} after expansion width={current_width:.1f}")
+                    print(f"      Header left edge ({header_left:.1f}) is within bounds: left={final_left:.1f}, right={final_right:.1f}")
+                    
+                    return {
+                        "left": final_left,
+                        "right": final_right,
+                        "top": table_top,
+                        "width": final_right - final_left,
+                        "found_header": candidate_text
+                    }
+        
+        # Step 6: Expand width by 10% of title width, remaining centered
+        current_width += expansion_increment
+        iteration += 1
+    
+    # If we didn't find the header, search the whole page as a debug step
+    print(f"      ⚠️  Could not find header after {iteration} expansion iterations")
+    print(f"      🔍 DEBUG: Searching entire page for expected headers: {expected_headers}")
+    
+    all_page_words = page.extract_words()
+    found_headers_debug = []
+    
+    for word in all_page_words:
+        word_text = word["text"].strip()
+        # Try single word match
+        for expected in expected_headers:
+            if is_complete_header_match(word_text, expected):
+                found_headers_debug.append({
+                    "text": word_text,
+                    "expected": expected,
+                    "x": word["x0"],
+                    "y": word["top"],
+                    "position": f"x={word['x0']:.1f}, y={word['top']:.1f}"
+                })
+        
+        # Try building phrases with adjacent words
+        same_line_words = [w for w in all_page_words 
+                         if abs(w["top"] - word["top"]) <= 5]
+        same_line_words.sort(key=lambda w: w["x0"])
+        
+        word_idx = None
+        for idx, w in enumerate(same_line_words):
+            if abs(w["x0"] - word["x0"]) < 1 and abs(w["top"] - word["top"]) < 1:
+                word_idx = idx
+                break
+        
+        if word_idx is not None:
+            for phrase_length in range(1, min(5, len(same_line_words) - word_idx + 1)):
+                phrase_words = same_line_words[word_idx:word_idx+phrase_length]
+                phrase_text = " ".join(w["text"].strip() for w in phrase_words)
+                
+                for expected in expected_headers:
+                    if is_complete_header_match(phrase_text, expected):
+                        # Check if we already found this
+                        already_found = any(f["text"] == phrase_text and f["expected"] == expected 
+                                           for f in found_headers_debug)
+                        if not already_found:
+                            found_headers_debug.append({
+                                "text": phrase_text,
+                                "expected": expected,
+                                "x": phrase_words[0]["x0"],
+                                "y": phrase_words[0]["top"],
+                                "position": f"x={phrase_words[0]['x0']:.1f}, y={phrase_words[0]['top']:.1f}"
+                            })
+    
+    if found_headers_debug:
+        print(f"      ✅ DEBUG: Found {len(found_headers_debug)} header match(es) on page:")
+        for match in found_headers_debug:
+            print(f"         - '{match['text']}' matches '{match['expected']}' at {match['position']}")
+            # Check if it's in the expected search area
+            in_search_area = search_start_y <= match['y'] <= search_end_y
+            print(f"           (In expected search area? {in_search_area}, search area: y={search_start_y:.1f} to {search_end_y:.1f})")
+    else:
+        print(f"      ❌ DEBUG: No expected headers found anywhere on the page")
+    
+    return None
+
+
 def find_first_column_header(page, table_top: float, left_bound: float, 
                             right_bound: float, expected_headers: List[str],
                             title_y: float = None) -> Optional[str]:
@@ -403,13 +715,15 @@ def find_first_column_header(page, table_top: float, left_bound: float,
     header_words.sort(key=lambda w: w["x0"])
     
     # Try to find a match with expected headers (prioritize exact matches)
+    # Check ALL expected headers for each word, not just the first one
     for word in header_words[:5]:  # Check first 5 words
         word_text_lower = word["text"].lower().strip()
+        # Check this word against ALL expected headers
         for expected in expected_headers:
             expected_lower = expected.lower().strip()
             # Exact match or contains match
             if expected_lower == word_text_lower or expected_lower in word_text_lower or word_text_lower in expected_lower:
-                return word["text"]
+                return word["text"]  # Return first match found
     
     # If no match found, don't return a data value - return None so we can use the expected default
     return None
@@ -457,11 +771,54 @@ def analyze_pdf_for_tables(pdf_file, generator_config: Dict[str, Any], pdf_name:
             
             if all_page_matches:
                 # Prefer exact phrase matches, then matches on earlier pages
-                all_page_matches.sort(key=lambda x: (
-                    -1 if title_text.lower() in x[1]["text"].lower() else 0,  # Exact phrase first
-                    x[0]  # Then by page index
-                ))
+                # Also verify the match is actually the correct title, not a similar one
+                def match_quality(match):
+                    page_idx, title_info, page = match
+                    found_text_lower = title_info["text"].lower()
+                    target_text_lower = title_text.lower()
+                    
+                    # Exact match gets highest priority
+                    if found_text_lower == target_text_lower:
+                        return (0, page_idx)
+                    # Exact phrase as substring gets second priority
+                    elif target_text_lower in found_text_lower:
+                        return (1, page_idx)
+                    # All words present gets third priority
+                    else:
+                        return (2, page_idx)
+                
+                all_page_matches.sort(key=match_quality)
                 page_idx, title_info, page = all_page_matches[0]
+                
+                # Verify this is actually the correct title
+                found_text_lower = title_info["text"].lower()
+                target_text_lower = title_text.lower()
+                
+                # For page2_text, be extra strict - require exact match or very close match
+                is_page2 = title_config.get("label") == "page2_text"
+                
+                if is_page2:
+                    # For page2_text, require exact phrase match (all words in order) or exact substring
+                    if found_text_lower != target_text_lower and target_text_lower not in found_text_lower:
+                        print(f"   ❌ REJECTING for page2_text: Title text doesn't match")
+                        print(f"      Expected: '{title_text}'")
+                        print(f"      Found: '{title_info['text']}'")
+                        print(f"      For page2_text, we require exact match or exact phrase as substring")
+                        continue  # Skip this match
+                    elif found_text_lower != target_text_lower:
+                        print(f"   ⚠️  Warning: Using partial match for page2_text (target phrase found in text)")
+                        print(f"      Expected: '{title_text}'")
+                        print(f"      Found: '{title_info['text']}'")
+                elif found_text_lower != target_text_lower and target_text_lower not in found_text_lower:
+                    print(f"   ⚠️  Warning: Found similar title but not exact match")
+                    print(f"      Expected: '{title_text}'")
+                    print(f"      Found: '{title_info['text']}'")
+                    # Check if all required words are present
+                    target_words = set(target_text_lower.split())
+                    found_words = set(found_text_lower.split())
+                    if not target_words.issubset(found_words):
+                        print(f"   ❌ Rejecting: Not all required words present")
+                        continue  # Skip this match
                 
                 if page_idx not in titles_by_page:
                     titles_by_page[page_idx] = []
@@ -470,6 +827,7 @@ def analyze_pdf_for_tables(pdf_file, generator_config: Dict[str, Any], pdf_name:
                 print(f"   ✅ Found on page {page_idx} (zero-based)")
                 print(f"      Detected text: '{title_info['text']}'")
                 print(f"      Title position: y={title_info['y_center']:.1f}, x_center={title_info['x_center']:.1f}")
+                print(f"      Title width: {title_info['right'] - title_info['left']:.1f} points")
             else:
                 print(f"   ❌ Title '{title_text}' not found in PDF")
         
@@ -533,8 +891,24 @@ def analyze_pdf_for_tables(pdf_file, generator_config: Dict[str, Any], pdf_name:
                     print(f"      ✓ All required words present: {required_words}")
                 
                 # Determine table bounds
+                # Special handling for page2_text: expand from title center until finding first column header
+                if title_config.get("label") == "page2_text":
+                    print(f"      Using expansion method for page2_text (title-centered, left-aligned table)")
+                    print(f"      VERIFY: Title found: '{title_info['text']}'")
+                    print(f"      VERIFY: Title position - left={title_info['left']:.1f}, right={title_info['right']:.1f}, x_center={title_info['x_center']:.1f}")
+                    print(f"      VERIFY: Expected title: '{title_text}'")
+                    if title_info['text'].lower() != title_text.lower():
+                        print(f"      ⚠️  WARNING: Title text mismatch! Found '{title_info['text']}' but expected '{title_text}'")
+                    expected_headers = title_config.get("expected_first_column_header", ["EC3EnrollmentStatus", "pw_contactname"])
+                    table_info = find_table_bounds_by_expanding_from_title(
+                        page,
+                        title_info,  # Pass full title_info dict
+                        page.width,
+                        expected_headers,
+                        gap=title_to_table_gap
+                    )
                 # If this page has multiple tables, use calculated boundaries from midpoints
-                if page_idx in page_boundaries and title_idx in page_boundaries[page_idx]:
+                elif page_idx in page_boundaries and title_idx in page_boundaries[page_idx]:
                     left_bound, right_bound = page_boundaries[page_idx][title_idx]
                     print(f"      Using calculated boundaries from midpoints: left={left_bound:.1f}, right={right_bound:.1f}")
                     # Find table below title to get table_top, but use calculated boundaries
@@ -572,21 +946,28 @@ def analyze_pdf_for_tables(pdf_file, generator_config: Dict[str, Any], pdf_name:
                     print(f"      Table center: {(table_info['left'] + table_info['right']) / 2:.1f} (title center: {title_info['x_center']:.1f})")
                     
                     # Find first column header (search near title, not table_top which may be data)
-                    expected_headers = title_config.get("expected_first_column_header", ["Name"])
-                    target_header = find_first_column_header(
-                        page,
-                        table_info["top"],
-                        table_info["left"],
-                        table_info["right"],
-                        expected_headers,
-                        title_y=title_info["bottom"]  # Use title position to find header
-                    )
-                    
-                    if target_header:
-                        print(f"      First column header: '{target_header}'")
+                    # For page2_text, the expansion method already found the header, so we can extract it
+                    expected_headers = title_config.get("expected_first_column_header", ["EC3EnrollmentStatus", "pw_contactname"])
+                    if title_config.get("label") == "page2_text" and "found_header" in table_info:
+                        # Use the header found during expansion
+                        target_header = table_info["found_header"]
+                        print(f"      First column header (from expansion): '{target_header}'")
                     else:
-                        print(f"      ⚠️  Could not find first column header, using first expected: '{expected_headers[0]}'")
-                        target_header = expected_headers[0]
+                        # Use normal header detection
+                        target_header = find_first_column_header(
+                            page,
+                            table_info["top"],
+                            table_info["left"],
+                            table_info["right"],
+                            expected_headers,
+                            title_y=title_info["bottom"]  # Use title position to find header
+                        )
+                        
+                        if target_header:
+                            print(f"      First column header: '{target_header}'")
+                        else:
+                            print(f"      ⚠️  Could not find first column header, using first expected: '{expected_headers[0]}'")
+                            target_header = expected_headers[0]
                     
                     # Get hints for other parameters
                     hints = title_config.get("hints", {})
@@ -610,6 +991,7 @@ def analyze_pdf_for_tables(pdf_file, generator_config: Dict[str, Any], pdf_name:
                         "test_function": title_config.get("test_function", "test_row"),
                         "extraction": {
                             "target_header": target_header,
+                            "expected_first_column_header": expected_headers,  # Store all expected headers for use during extraction
                             "start_top": round(estimated_start_top),
                             "left_bound": round(table_info["left"]),
                             "right_bound": round(table_info["right"]),

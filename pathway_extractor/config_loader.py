@@ -21,6 +21,13 @@ class PageConfig:
         # Extraction settings
         extraction = config_dict.get("extraction", {})
         self.target_header = extraction.get("target_header", "pw_contactname")
+        # Store expected headers - use all of them if available, otherwise fall back to target_header
+        expected_headers = extraction.get("expected_first_column_header", None)
+        if expected_headers:
+            self.expected_headers = expected_headers if isinstance(expected_headers, list) else [expected_headers]
+        else:
+            # Fallback to using target_header as a single-item list
+            self.expected_headers = [self.target_header]
         self.start_top = extraction.get("start_top", 177)
         self.max_shift = extraction.get("max_shift", 150)
         self.delta = extraction.get("delta", 20)
