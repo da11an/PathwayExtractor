@@ -1,4 +1,6 @@
 from pathlib import Path
+import re
+import unicodedata
 
 def get_zip_file(download_dir: Path) -> Path:
     # Find zip files in Downloads that match expected naming pattern
@@ -71,3 +73,55 @@ def get_zip_file(download_dir: Path) -> Path:
     print("zip_file selected: ", zip_file)
 
     return zip_file
+
+
+def sanitize_filename(filename: str, max_length: int = 200) -> str:
+    """
+    Sanitize a filename to be safe for Windows and other filesystems.
+    
+    Removes or replaces invalid characters, handles Unicode, and ensures
+    the filename doesn't exceed length limits.
+    
+    Args:
+        filename: The original filename (without extension)
+        max_length: Maximum length for the filename (default 200 to leave room for extension)
+    
+    Returns:
+        A sanitized filename safe for use in file paths
+    """
+    # Windows invalid characters: < > : " / \ | ? *
+    # Also remove control characters
+    invalid_chars = r'[<>:"/\\|?*\x00-\x1f]'
+    
+    # Replace invalid characters with underscore
+    sanitized = re.sub(invalid_chars, '_', filename)
+    
+    # Normalize Unicode characters (e.g., convert accented characters to their base form)
+    # This helps with characters that might cause issues on Windows
+    try:
+        # Try to normalize to NFC form (canonical composition)
+        sanitized = unicodedata.normalize('NFC', sanitized)
+    except Exception:
+        # If normalization fails, just use the string as-is after removing invalid chars
+        pass
+    
+    # Remove leading/trailing spaces and periods (Windows doesn't allow these)
+    sanitized = sanitized.strip(' .')
+    
+    # Replace multiple consecutive underscores with a single one
+    sanitized = re.sub(r'_+', '_', sanitized)
+    
+    # Handle reserved names on Windows (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
+    reserved_names = ['CON', 'PRN', 'AUX', 'NUL'] + [f'COM{i}' for i in range(1, 10)] + [f'LPT{i}' for i in range(1, 10)]
+    if sanitized.upper() in reserved_names:
+        sanitized = f'_{sanitized}_'
+    
+    # Truncate if too long (leave room for extension)
+    if len(sanitized) > max_length:
+        sanitized = sanitized[:max_length].rstrip(' .')
+    
+    # Ensure it's not empty
+    if not sanitized:
+        sanitized = 'unnamed'
+    
+    return sanitized

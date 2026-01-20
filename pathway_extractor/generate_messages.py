@@ -2,14 +2,20 @@ import json
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from pathway_extractor.html_to_png import save_html_as_png
+from pathway_extractor.utils import sanitize_filename
 
 SKILLS = ["grammar", "listen", "read", "speak", "vocabulary", "write"]
 
 def output_folder_structure(student, output_folder: Path):
-    folder_level_1 = student["class_info"]["region"] + "_" + student["class_info"]["type"]
-    folder_level_2 = (student["class_info"]["facilitators"][0] + "_" + 
-                      student["class_info"]["day"] + "_" + 
-                      student["class_info"]["time"])
+    # Sanitize folder names to avoid invalid characters
+    region = sanitize_filename(student["class_info"]["region"], max_length=100)
+    class_type = sanitize_filename(student["class_info"]["type"], max_length=100)
+    folder_level_1 = f"{region}_{class_type}"
+    
+    facilitator = sanitize_filename(student["class_info"]["facilitators"][0] if student["class_info"]["facilitators"] else "Unknown", max_length=50)
+    day = sanitize_filename(student["class_info"]["day"], max_length=20)
+    time = sanitize_filename(student["class_info"]["time"], max_length=20)
+    folder_level_2 = f"{facilitator}_{day}_{time}"
     
     # Create the directory structure for this student
     student_dir = output_folder / folder_level_1 / folder_level_2
@@ -173,7 +179,11 @@ def generate_message(class_record: dict, output_path: Path):
             "class_info": class_info
         }, output_path)
 
-        save_html_as_png(html, student_dir / f"{student_name}.png", width=700, height=300)
+        # Sanitize student name for filename to avoid invalid characters
+        safe_student_name = sanitize_filename(student_name, max_length=200)
+        output_png_path = student_dir / f"{safe_student_name}.png"
+        
+        save_html_as_png(html, output_png_path, width=700, height=300)
 
 
 def main(summaries_jsonl: str, output_dir: str):
