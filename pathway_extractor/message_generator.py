@@ -124,6 +124,57 @@ TEMPLATES = {
         "With {average:.1f} units per week on average, you're doing great!",
     ],
     
+    # Course Completion Patterns
+    "pathway_ready": [
+        "Congratulations! You've met all the requirements for Pathway Connect!",
+        "You've done it! Your completion certificate is within reach!",
+        "All your hard work has paid off—you're ready for Pathway Connect!",
+        "What an achievement! You've completed the language requirements!",
+        "You've reached the finish line—Pathway Connect awaits!",
+    ],
+    
+    "near_completion": [
+        "You're so close to completing the program—keep going!",
+        "Just a little more and you'll have your completion certificate!",
+        "The finish line is in sight—you're almost there!",
+        "You're on the verge of a major achievement!",
+        "With {certified_count} of 6 skills at target, you're nearly done!",
+    ],
+    
+    "skill_certified": [
+        "You've reached the target level in {skill}—outstanding!",
+        "Your {skill} has hit the goal—one step closer to completion!",
+        "{skill} mastered! Keep this momentum going!",
+        "Another skill at target level—your {skill} is where it needs to be!",
+    ],
+    
+    "multiple_certifications": [
+        "With {certified_count} skills at target level, you're making excellent progress!",
+        "You've got {certified_count} skills checked off—great work toward completion!",
+        "{certified_count} down, {remaining_count} to go—you're doing wonderfully!",
+    ],
+    
+    # Current Block Focus (weekly_submissions = this term only)
+    "block_dedication": [
+        "Your dedication this block has been impressive!",
+        "This term you're showing what focused effort can achieve.",
+        "Your work this block reflects real commitment to learning.",
+        "This term's effort is building your skills beautifully.",
+    ],
+    
+    "block_strong_finish": [
+        "You're finishing this block strong!",
+        "What a way to close out this term—excellent work!",
+        "This block's final stretch shows your determination.",
+    ],
+    
+    # All-Time Achievement Focus (submissions_by_skill = accumulated across terms)
+    "lifetime_achievement": [
+        "Across all your studies, you've built {total_alltime} units of learning!",
+        "Your overall journey shows {total_alltime} units of dedicated progress.",
+        "With {total_alltime} units completed in your journey, you've come so far!",
+    ],
+    
     # Fallback/General
     "general": [
         "Keep up the great work—every unit brings you closer to your goals!",
@@ -159,6 +210,18 @@ SKILL_DISPLAY_NAMES = {
     "vocabulary": "vocabulary",
 }
 
+# Certificate requirements: level needed for each skill
+# Level 4 for grammar, vocabulary, reading, writing
+# Level 3 for speaking, listening (level 4 exists but not required)
+CERTIFICATE_REQUIREMENTS = {
+    "grammar": 4,
+    "vocabulary": 4,
+    "reading": 4,
+    "writing": 4,
+    "speaking": 3,
+    "listening": 3,
+}
+
 
 # =============================================================================
 # PATTERN DETECTION
@@ -168,6 +231,11 @@ def analyze_student_progress(student_data: dict) -> Dict[str, any]:
     """
     Analyze student data and return detected patterns with scores.
     
+    Data semantics:
+    - weekly_submissions: Current block/term only (units this term by week)
+    - submissions_by_skill: All-time accumulated (total units ever per skill)
+    - skill_scores: All-time levels achieved (highest level per skill)
+    
     Args:
         student_data: Dict with weekly_submissions, submissions_by_skill, skill_scores
         
@@ -176,7 +244,7 @@ def analyze_student_progress(student_data: dict) -> Dict[str, any]:
     """
     patterns = {}
     
-    # Extract weekly data
+    # Extract weekly data (CURRENT BLOCK ONLY)
     weekly = student_data.get("weekly_submissions", {})
     weekly_values = []
     for key, value in sorted(weekly.items()):
@@ -186,21 +254,43 @@ def analyze_student_progress(student_data: dict) -> Dict[str, any]:
             except (ValueError, TypeError):
                 weekly_values.append(0)
     
-    # Extract skill data
-    skill_units = student_data.get("submissions_by_skill", {})
-    skill_scores = student_data.get("skill_scores", {})
+    # Extract skill data (ALL-TIME)
+    skill_units = student_data.get("submissions_by_skill", {})  # All-time units per skill
+    skill_scores = student_data.get("skill_scores", {})  # All-time levels
     
     # Calculate totals
-    total_units = sum(weekly_values) if weekly_values else 0
+    block_total = sum(weekly_values) if weekly_values else 0  # This block only
     num_weeks = len(weekly_values)
-    average_per_week = total_units / num_weeks if num_weeks > 0 else 0
+    average_per_week = block_total / num_weeks if num_weeks > 0 else 0
+    
+    # All-time total from skill units
+    alltime_total = sum(v for v in skill_units.values() if isinstance(v, (int, float)) and v > 0)
+    
+    # === Certificate Completion Tracking ===
+    # Check how many skills are at their required level
+    certified_skills = []
+    skills_at_target = 0
+    
+    for skill, required_level in CERTIFICATE_REQUIREMENTS.items():
+        current_level = skill_scores.get(skill, -1)
+        # Handle string levels like "-" or "-1"
+        if isinstance(current_level, str):
+            current_level = -1 if current_level in ["-", "-1", ""] else int(current_level) if current_level.lstrip('-').isdigit() else -1
+        
+        if current_level >= required_level:
+            skills_at_target += 1
+            certified_skills.append(skill)
     
     # Store context for template filling
     patterns["_context"] = {
-        "total": total_units,
+        "total": block_total,  # Current block total (for weekly patterns)
+        "total_alltime": alltime_total,  # All-time total
         "average": average_per_week,
         "num_weeks": num_weeks,
         "weekly_values": weekly_values,
+        "certified_count": skills_at_target,
+        "remaining_count": 6 - skills_at_target,
+        "certified_skills": certified_skills,
     }
     
     # --- Pattern Detection ---
@@ -257,15 +347,15 @@ def analyze_student_progress(student_data: dict) -> Dict[str, any]:
             patterns["comeback"] = {"score": 6, "priority": 2}
     
     # 7. High performer (total units above thresholds)
-    if total_units >= 100:
+    if block_total >= 100:
         patterns["high_performer"] = {"score": 9, "priority": 1}
-    elif total_units >= 50:
+    elif block_total >= 50:
         patterns["high_performer"] = {"score": 7, "priority": 2}
     
     # 8. Milestone reached
     milestones = [100, 75, 50, 25, 10]
     for m in milestones:
-        if total_units >= m:
+        if block_total >= m:
             patterns["_context"]["milestone"] = m
             if m >= 50:
                 patterns["milestone"] = {"score": 6, "priority": 3}
@@ -305,6 +395,45 @@ def analyze_student_progress(student_data: dict) -> Dict[str, any]:
     # 12. Active learner (has recent activity)
     if weekly_values and weekly_values[-1] > 0:
         patterns["active_learner"] = {"score": 3, "priority": 4}
+    
+    # === CERTIFICATE COMPLETION PATTERNS ===
+    
+    # 13. Pathway Ready (all 6 skills at target level)
+    if skills_at_target == 6:
+        patterns["pathway_ready"] = {"score": 15, "priority": 0}  # Highest priority!
+    
+    # 14. Near Completion (5 of 6 skills at target)
+    elif skills_at_target == 5:
+        patterns["near_completion"] = {"score": 12, "priority": 1}
+    
+    # 15. Multiple Certifications (2-4 skills at target)
+    elif skills_at_target >= 2:
+        patterns["multiple_certifications"] = {"score": 8, "priority": 2}
+    
+    # 16. Skill Certified (at least one skill at target, pick the first one for message)
+    if certified_skills:
+        patterns["_context"]["skill"] = SKILL_DISPLAY_NAMES.get(
+            certified_skills[0].lower(), certified_skills[0]
+        )
+        if skills_at_target == 1:
+            patterns["skill_certified"] = {"score": 6, "priority": 3}
+    
+    # === BLOCK/TERM FOCUS PATTERNS ===
+    
+    # 17. Block dedication (strong performance this block)
+    if num_weeks >= 3 and average_per_week >= 6:
+        patterns["block_dedication"] = {"score": 5, "priority": 3}
+    
+    # 18. Block strong finish (last 2 weeks are best of block)
+    if num_weeks >= 4:
+        last_two_avg = sum(weekly_values[-2:]) / 2
+        first_weeks_avg = sum(weekly_values[:-2]) / (num_weeks - 2) if num_weeks > 2 else 0
+        if last_two_avg > first_weeks_avg * 1.3:  # 30% better finish
+            patterns["block_strong_finish"] = {"score": 6, "priority": 3}
+    
+    # 19. Lifetime achievement (significant all-time units)
+    if alltime_total >= 100:
+        patterns["lifetime_achievement"] = {"score": 7, "priority": 2}
     
     return patterns
 
