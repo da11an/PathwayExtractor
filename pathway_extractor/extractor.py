@@ -195,7 +195,7 @@ def extract_largest_table(page, table_settings=None, label=None, debug=False, de
     return largest_table or []
 
 
-def parse_record(file_name: str, page_tables: dict, page_headers: dict, pdf_size: float, config: ExtractionConfig) -> dict:
+def parse_record(file_name: str, page_tables: dict, page_headers: dict, pdf_size: float, config: ExtractionConfig, debug: bool = False) -> dict:
     """Parse extracted tables into a record using configured parsers."""
     parsed = {
         "file": file_name,
@@ -210,21 +210,23 @@ def parse_record(file_name: str, page_tables: dict, page_headers: dict, pdf_size
         table_data = page_tables.get(label, [])
         headers = page_headers.get(label, [])
         
-        # Debug output
-        print(f"🔍 Parsing {label}: {len(table_data)} rows, {len(headers)} headers")
-        if table_data:
-            print(f"   First row: {table_data[0]}")
-        if headers:
-            print(f"   Headers: {headers}")
+        if debug:
+            print(f"🔍 Parsing {label}: {len(table_data)} rows, {len(headers)} headers")
+            if table_data:
+                print(f"   First row: {table_data[0]}")
+            if headers:
+                print(f"   Headers: {headers}")
         
         # Pass the target_header to the parser function
         result = parser_func(table_data, headers, target_header=page_config.target_header)
-        print(f"   Parser result keys: {list(result.keys())}")
-        for key, value in result.items():
-            if isinstance(value, list):
-                print(f"   {key}: {len(value)} items")
-            else:
-                print(f"   {key}: {value}")
+        
+        if debug:
+            print(f"   Parser result keys: {list(result.keys())}")
+            for key, value in result.items():
+                if isinstance(value, list):
+                    print(f"   {key}: {len(value)} items")
+                else:
+                    print(f"   {key}: {value}")
         parsed.update(result)
     
     return parsed
@@ -303,9 +305,10 @@ def extract_records_from_zip(
                             if idx < len(pdf.pages):
                                 original_page = pdf.pages[idx]
                                 
-                                # Always print page dimensions - useful for configuration
-                                print(f"   Page {idx} dimensions: {original_page.width:.1f} x {original_page.height:.1f} points")
-                                print(f"   Searching for target header: '{page_config.target_header}'")
+                                if debug:
+                                    # Print page dimensions - useful for configuration debugging
+                                    print(f"   Page {idx} dimensions: {original_page.width:.1f} x {original_page.height:.1f} points")
+                                    print(f"   Searching for target header: '{page_config.target_header}'")
                                 
                                 # Save original full page for reference (only once per page index, but include label for uniqueness)
                                 if debug and debug_dir is not None:
@@ -449,7 +452,7 @@ def extract_records_from_zip(
                         print(f"\n📊 Summary: Processed {len(page_tables)} table(s) for {name}")
                         print(f"   Labels processed: {list(page_tables.keys())}")
                     
-                    rec = parse_record(name, page_tables, page_headers, pdf_size, config)
+                    rec = parse_record(name, page_tables, page_headers, pdf_size, config, debug=debug)
                     if debug:
                         print("rec", rec)
                         print(f"\n✅ Completed processing {len(page_configs)} configuration(s) for {name}")
