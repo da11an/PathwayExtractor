@@ -16,6 +16,203 @@ from typing import List, Dict, Any, Optional, Tuple
 import argparse
 
 
+def get_font_size_at_position(page, left: float, top: float, right: float, bottom: float) -> float:
+    """
+    Get the dominant font size for text within a bounding box.
+    
+    Uses pdfplumber's character-level data to find font sizes.
+    
+    Args:
+        page: pdfplumber page object
+        left, top, right, bottom: Bounding box coordinates
+    
+    Returns:
+        The dominant (most common) font size, or 0 if no chars found
+    """
+    chars = page.chars
+    if not chars:
+        return 0
+    
+    # Find chars within the bounding box (with some tolerance)
+    tolerance = 2  # Points of tolerance for matching
+    matching_chars = [
+        c for c in chars
+        if c["x0"] >= left - tolerance
+        and c["x1"] <= right + tolerance
+        and c["top"] >= top - tolerance
+        and c["bottom"] <= bottom + tolerance
+    ]
+    
+    if not matching_chars:
+        return 0
+    
+    # Get font sizes and find the dominant one
+    sizes = [c.get("size", 0) for c in matching_chars if c.get("size", 0) > 0]
+    if not sizes:
+        return 0
+    
+    # Return the most common size (mode) - this handles mixed-size lines
+    from collections import Counter
+    size_counts = Counter(round(s, 1) for s in sizes)
+    dominant_size = size_counts.most_common(1)[0][0]
+    
+    return dominant_size
+
+
+def find_all_title_matches(page, text: str) -> List[Dict[str, Any]]:
+    """
+    Find ALL instances of title text on a page, with font size information.
+    
+    This function returns all matches, not just the best one, so that the
+    caller can choose the correct one based on font size or other criteria.
+    
+    IMPORTANT: When a line contains multiple titles (e.g., "*Assignments Submitted 
+    by Week *Learners with No Submissions"), this function extracts ONLY the words 
+    that match the target phrase, not the entire line.
+    
+    Args:
+        page: pdfplumber page object
+        text: Text to search for (full phrase - all words must be present)
+    
+    Returns:
+        List of dicts, each with 'top', 'bottom', 'left', 'right', 'x_center', 
+        'y_center', 'text', 'font_size', and 'score'
+    """
+    words = page.extract_words()
+    if not words:
+        return []
+    
+    # Split target text into words for matching
+    target_words = [w.lower().strip() for w in text.split() if w.strip()]
+    if not target_words:
+        return []
+    
+    # Group words by y-position (same line)
+    y_groups = {}
+    for word in words:
+        y_key = round(word["top"], 1)
+        if y_key not in y_groups:
+            y_groups[y_key] = []
+        y_groups[y_key].append(word)
+    
+    matches = []
+    
+    for y_key, line_words in sorted(y_groups.items()):
+        # Sort words by x position
+        line_words_sorted = sorted(line_words, key=lambda w: w["x0"])
+        line_words_lower = [w["text"].lower() for w in line_words_sorted]
+        
+        # Try to find a contiguous sequence of words that match the target phrase
+        # This handles cases where multiple titles appear on the same line
+        best_phrase_words = None
+        best_score = 0
+        
+        for start_idx in range(len(line_words_sorted)):
+            # Try to match target words starting from this position
+            phrase_words = []
+            target_idx = 0
+            
+            for i in range(start_idx, len(line_words_sorted)):
+                word = line_words_sorted[i]
+                word_lower = word["text"].lower()
+                
+                # Check if this word matches the current target word
+                if target_idx < len(target_words):
+                    target_word = target_words[target_idx]
+                    # Match if word contains target or target contains word
+                    # Also handle asterisk prefix (e.g., "*Assignments")
+                    word_clean = word_lower.lstrip('*')
+                    if (target_word in word_clean or word_clean in target_word or
+                        target_word == word_lower or word_lower.endswith(target_word)):
+                        phrase_words.append(word)
+                        target_idx += 1
+                        
+                        # Check if we've matched all target words
+                        if target_idx == len(target_words):
+                            break
+                    elif phrase_words:
+                        # We've started matching but this word doesn't match
+                        # Stop trying to extend from this start position
+                        break
+            
+            # Check if we found all target words
+            if target_idx == len(target_words):
+                score = len(target_words) + 5  # Bonus for contiguous match
+                
+                # Extra bonus if it's an exact match (same number of words)
+                if len(phrase_words) == len(target_words):
+                    score += 10
+                
+                if score > best_score:
+                    best_score = score
+                    best_phrase_words = phrase_words
+        
+        # If we found a match on this line
+        if best_phrase_words:
+            phrase_left = best_phrase_words[0]["x0"]
+            phrase_right = best_phrase_words[-1]["x1"]
+            phrase_top = min(w["top"] for w in best_phrase_words)
+            phrase_bottom = max(w["bottom"] for w in best_phrase_words)
+            phrase_center_x = (phrase_left + phrase_right) / 2
+            
+            # Get font size for this match
+            font_size = get_font_size_at_position(page, phrase_left, phrase_top, phrase_right, phrase_bottom)
+            
+            match_info = {
+                "top": phrase_top,
+                "bottom": phrase_bottom,
+                "left": phrase_left,
+                "right": phrase_right,
+                "x_center": phrase_center_x,
+                "y_center": (phrase_top + phrase_bottom) / 2,
+                "text": " ".join(w["text"] for w in best_phrase_words),
+                "font_size": font_size,
+                "score": best_score
+            }
+            matches.append(match_info)
+    
+    return matches
+
+
+def find_best_title_match(matches: List[Dict[str, Any]], target_text: str) -> Optional[Dict[str, Any]]:
+    """
+    Select the best title match from a list of candidates.
+    
+    Selection criteria (in order of priority):
+    1. Largest font size (table titles are typically styled larger)
+    2. Highest match score (exact phrase > word order > word presence)
+    3. Topmost position (earlier on page)
+    
+    Args:
+        matches: List of title match dicts from find_all_title_matches
+        target_text: The original target text (for logging)
+    
+    Returns:
+        The best match dict, or None if matches is empty
+    """
+    if not matches:
+        return None
+    
+    if len(matches) == 1:
+        return matches[0]
+    
+    # Log that we found multiple matches
+    print(f"      Found {len(matches)} instances of title text:")
+    for i, m in enumerate(matches):
+        print(f"        [{i+1}] '{m['text'][:50]}...' at y={m['top']:.1f}, font_size={m['font_size']:.1f}, score={m['score']}")
+    
+    # Sort by: font_size (desc), score (desc), top position (asc)
+    sorted_matches = sorted(
+        matches,
+        key=lambda m: (-m["font_size"], -m["score"], m["top"])
+    )
+    
+    best = sorted_matches[0]
+    print(f"      Selected: '{best['text'][:50]}...' (font_size={best['font_size']:.1f})")
+    
+    return best
+
+
 def find_title_text(page, text: str) -> Optional[Dict[str, float]]:
     """
     Find title text on a page by matching the text content.
@@ -757,21 +954,26 @@ def analyze_pdf_for_tables(pdf_file, generator_config: Dict[str, Any], pdf_name:
         
         # Step 1: Find all titles across all pages, grouped by page
         # Structure: {page_idx: [(title_config_index, title_info, page, title_config), ...]}
+        # NEW: Use font-size-based selection when multiple instances exist
         titles_by_page = {}
         for title_idx, title_config in enumerate(table_titles_config):
             title_text = title_config["title_text"]
             print(f"\n🔍 Looking for table title: '{title_text}'")
             
-            # Search ALL pages for this title
+            # Search ALL pages for this title, collecting ALL matches per page
             all_page_matches = []
             for page_idx, page in enumerate(pdf.pages):
-                title_info = find_title_text(page, title_text)
-                if title_info:
-                    all_page_matches.append((page_idx, title_info, page))
+                # Use find_all_title_matches to get ALL instances on this page
+                page_matches = find_all_title_matches(page, title_text)
+                if page_matches:
+                    # Use find_best_title_match to select the best one based on font size
+                    best_match = find_best_title_match(page_matches, title_text)
+                    if best_match:
+                        all_page_matches.append((page_idx, best_match, page))
             
             if all_page_matches:
+                # Now select the best match across all pages
                 # Prefer exact phrase matches, then matches on earlier pages
-                # Also verify the match is actually the correct title, not a similar one
                 def match_quality(match):
                     page_idx, title_info, page = match
                     found_text_lower = title_info["text"].lower()
@@ -824,7 +1026,9 @@ def analyze_pdf_for_tables(pdf_file, generator_config: Dict[str, Any], pdf_name:
                     titles_by_page[page_idx] = []
                 titles_by_page[page_idx].append((title_idx, title_info, page, title_config))
                 
-                print(f"   ✅ Found on page {page_idx} (zero-based)")
+                # Log font size used in selection
+                font_size = title_info.get("font_size", 0)
+                print(f"   ✅ Found on page {page_idx} (zero-based), font_size={font_size:.1f}")
                 print(f"      Detected text: '{title_info['text']}'")
                 print(f"      Title position: y={title_info['y_center']:.1f}, x_center={title_info['x_center']:.1f}")
                 print(f"      Title width: {title_info['right'] - title_info['left']:.1f} points")

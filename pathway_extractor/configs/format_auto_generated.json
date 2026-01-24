@@ -15,8 +15,8 @@
           "pw_contactname"
         ],
         "start_top": 250,
-        "left_bound": 75,
-        "right_bound": 847,
+        "left_bound": 35,
+        "right_bound": 844,
         "max_shift": 150,
         "delta": 20,
         "header_height": 50,
@@ -39,7 +39,7 @@
         ],
         "start_top": 300,
         "left_bound": 0,
-        "right_bound": 991,
+        "right_bound": 978,
         "max_shift": 150,
         "delta": 20,
         "header_height": 50,
@@ -61,7 +61,7 @@
           "pw_contactname"
         ],
         "start_top": 300,
-        "left_bound": 991,
+        "left_bound": 978,
         "right_bound": 1920,
         "max_shift": 150,
         "delta": 20,
