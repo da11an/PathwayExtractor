@@ -4,3 +4,4 @@
 .venv/
 venv*/
 debug_output/
+pathway_extractor/configs/format_auto_generated.json
