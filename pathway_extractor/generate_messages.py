@@ -3,6 +3,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from pathway_extractor.html_to_png import save_html_as_png
 from pathway_extractor.utils import sanitize_filename
+from pathway_extractor.message_generator import generate_encouraging_message
 
 SKILLS = ["grammar", "listen", "read", "speak", "vocabulary", "write"]
 
@@ -24,7 +25,7 @@ def output_folder_structure(student, output_folder: Path):
     return student_dir
 
 
-def generate_progress_report_html(student_name: str, facilitators: list, levels: dict, units: dict, weekly_units: dict):
+def generate_progress_report_html(student_name: str, facilitators: list, levels: dict, units: dict, weekly_units: dict, encouraging_message: str = None):
     skills = ["Grammar", "Listening", "Reading", "Speaking", "Vocabulary", "Writing"]
     weeks = list(range(1, len(weekly_units) + 1))
     # Ensure all values are integers (handle cases where clean_value might return strings)
@@ -32,6 +33,10 @@ def generate_progress_report_html(student_name: str, facilitators: list, levels:
                          for k, v in weekly_units.items()}
     max_week_val = max(weekly_units_ints.values()) if weekly_units_ints else 0
     average_weekly_units = round(sum(weekly_units_ints.values()) / max(len(weekly_units_ints), 1), 1)
+    
+    # Use provided encouraging message or default
+    if encouraging_message is None:
+        encouraging_message = "Press forward with faith in every footstep to reach your goals."
 
     html = """
     <html>
@@ -67,15 +72,23 @@ def generate_progress_report_html(student_name: str, facilitators: list, levels:
                 font-size: 16px;
                 margin-top: 20px;
             }
+            .encouraging-message {
+                font-style: italic;
+                color: #555;
+                margin-top: 5px;
+            }
         </style>
     </head>
     <body>
     """
 
+    # Get first name for greeting
+    first_name = student_name.split()[0] if student_name else "Friend"
+    
     html += f"""
-        <p class="emoji-note">😃 <strong>Hi, {student_name.split()[0]}!</strong> 
-        Here is the most recent update on units you have completed in the Proficiency section of the EC3 learning app.
-        "Press forward with faith in every footstep" to reach your goals.</p>
+        <p class="emoji-note">😃 <strong>Hi, {first_name}!</strong> 
+        Here is the most recent update on units you have completed in the Proficiency section of the EC3 learning app.</p>
+        <p class="encouraging-message">{encouraging_message}</p>
     """
 
     html += f'<div style="display: flex; justify-content: space-between; margin: 20px 0;"><div><strong>{student_name}</strong></div><div><small>{", ".join(facilitators)}</small></div></div>'
@@ -165,12 +178,16 @@ def generate_message(class_record: dict, output_path: Path):
                 except (ValueError, TypeError):
                     weekly_units[week_num] = 0
         
+        # Generate personalized encouraging message based on student's progress
+        encouraging_message = generate_encouraging_message(student_name, data)
+        
         html = generate_progress_report_html(
             student_name=student_name,
             facilitators=class_info.get("facilitators", []),
             levels=levels,
             units=skill_units,
             weekly_units=weekly_units,
+            encouraging_message=encouraging_message,
         )
 
         # Create student output folder
