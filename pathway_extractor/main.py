@@ -99,7 +99,7 @@ def main():
     class_page_records = extract_records_from_zip(
         zip_path=str(zip_file),
         max_files=None,
-        filename_filter="Prince",
+        filename_filter=None,
         debug=args.debug,
         config=config,
         debug_dir=debug_dir
