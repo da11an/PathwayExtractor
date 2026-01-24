@@ -37,7 +37,7 @@
       "parser_module": "pathway_extractor.parsers.page_4",
       "parser_function": "parse_page_4_table",
       "test_function": "test_row",
-      "expected_first_column_header": ["Name", "EC3EnrollmentStatus", "pw_contactname"],
+      "expected_first_column_header": ["Name", "EC3EnrollmentStatus", "pw_contactname", "AllSkillsCompleted"],
       "hints": {
         "typical_start_top": 300,
         "typical_header_height": 50,
