@@ -31,7 +31,7 @@
       "parser_function": "parse_page_3_table",
       "test_function": "test_row",
       "extraction": {
-        "target_header": "EC3EnrollmentStatus",
+        "target_header": "Name",
         "expected_first_column_header": [
           "Name",
           "EC3EnrollmentStatus",
@@ -39,7 +39,7 @@
         ],
         "start_top": 300,
         "left_bound": 0,
-        "right_bound": 978,
+        "right_bound": 988,
         "max_shift": 150,
         "delta": 20,
         "header_height": 50,
@@ -54,14 +54,15 @@
       "parser_function": "parse_page_4_table",
       "test_function": "test_row",
       "extraction": {
-        "target_header": "EC3EnrollmentStatus",
+        "target_header": "AllSkillsCompleted",
         "expected_first_column_header": [
           "Name",
           "EC3EnrollmentStatus",
-          "pw_contactname"
+          "pw_contactname",
+          "AllSkillsCompleted"
         ],
         "start_top": 300,
-        "left_bound": 978,
+        "left_bound": 988,
         "right_bound": 1920,
         "max_shift": 150,
         "delta": 20,

@@ -9,6 +9,7 @@ def normalize_header(header):
         "pw_contactname": "student_name",
         "name": "student_name",  # Map 'name' to 'student_name' for consistency
         "ec3enrollmentstatus": "student_name",  # Map 'EC3EnrollmentStatus' to 'student_name'
+        "allskillscompleted": "student_name",  # Map 'AllSkillsCompleted' to 'student_name'
         "grammar": "grammar",
         "vocab": "vocabulary",
         "read": "reading",

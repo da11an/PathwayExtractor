@@ -54,7 +54,7 @@ def parse_page_4_table(table: list, headers: list, target_header: str = "pw_cont
             normalized_headers = [normalize_header(header) for header in headers]
             # Ensure first column is mapped to student_name if it's a name column variant
             # (normalize_header should handle this, but double-check)
-            if normalized_headers and normalized_headers[0] in ["ec3enrollmentstatus", "name", "pw_contactname"]:
+            if normalized_headers and normalized_headers[0] in ["ec3enrollmentstatus", "name", "pw_contactname", "allskillscompleted"]:
                 normalized_headers[0] = "student_name"
             
             if len(normalized_headers) != len(row):
