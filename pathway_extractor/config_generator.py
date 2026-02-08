@@ -587,39 +587,77 @@ def is_complete_header_match(text: str, expected: str) -> bool:
     return False
 
 
+def detect_title_alignment(title_info: Dict[str, float], page_width: float) -> str:
+    """
+    Detect if a title is centered or left-aligned.
+    
+    Args:
+        title_info: Dict with title position info (left, right, x_center)
+        page_width: Width of the page
+    
+    Returns:
+        "centered" or "left_aligned"
+    """
+    title_x_center = title_info["x_center"]
+    title_left = title_info["left"]
+    page_center = page_width / 2
+    
+    # Check if title is centered (within 10% of page center)
+    center_tolerance = page_width * 0.10
+    if abs(title_x_center - page_center) <= center_tolerance:
+        return "centered"
+    
+    # Check if title is left-aligned (left edge within 5% of page left)
+    left_tolerance = page_width * 0.05
+    if title_left <= left_tolerance:
+        return "left_aligned"
+    
+    # Default to centered if unclear
+    return "centered"
+
+
 def find_table_bounds_by_expanding_from_title(page, title_info: Dict[str, float],
                                              page_width: float, expected_headers: List[str],
+                                             expected_last_headers: List[str] = None,
                                              gap: float = 30, max_search_distance: float = 200) -> Optional[Dict[str, float]]:
     """
-    Find table bounds by iteratively expanding horizontally from the title center
-    until finding one of the expected first column headers.
+    Find table bounds by iteratively expanding horizontally from the title
+    until finding one of the expected first column headers, and optionally the last column header.
     
     Algorithm:
-    1. Get the width of the table title
-    2. Set initial horizontal search bounds to the width of the table title, centered on title center
-    3. Search BELOW the title position only
-    4. If full column header text is found, use these as the horizontal bounds
-    5. Otherwise, expand the width by 10% of the table title width, remaining centered
-    6. Repeat until header found or page bounds reached
+    1. Detect title alignment (centered or left-aligned)
+    2. Get the width of the table title
+    3. Set initial horizontal search bounds based on alignment:
+       - Centered: expand from title center
+       - Left-aligned: expand from title left edge
+    4. Search BELOW the title position only
+    5. If full first column header text is found, use it for left bound
+    6. If expected_last_headers provided, search for last column header in same row
+    7. Otherwise, expand the width by 10% of the table title width
+    8. Repeat until headers found or page bounds reached
     
     Args:
         page: pdfplumber page object
         title_info: Dict with title position info (left, right, x_center, bottom/y_center)
         page_width: Width of the page
         expected_headers: List of possible first column header names to look for
+        expected_last_headers: Optional list of possible last column header names
         gap: Expected gap between title and table header
         max_search_distance: Maximum distance to search below title for header
     
     Returns:
-        Dict with table bounds (left, right, top, width, found_header) or None
+        Dict with table bounds (left, right, top, width, found_header, found_last_header, 
+        header_top, header_bottom) or None
     """
+    # Detect title alignment
+    alignment = detect_title_alignment(title_info, page_width)
     title_x_center = title_info["x_center"]
     title_y = title_info["bottom"]  # Use bottom as the Y position
     title_left = title_info["left"]
     title_right = title_info["right"]
     title_width = title_right - title_left
     
-    print(f"      VERIFY in expansion function: Title text='{title_info.get('text', 'N/A')}', x_center={title_x_center:.1f}, width={title_width:.1f}")
+    print(f"      VERIFY in expansion function: Title text='{title_info.get('text', 'N/A')}', alignment={alignment}, x_center={title_x_center:.1f}, width={title_width:.1f}")
     
     # Step 3: Limit searches to just BELOW the table title position
     # Use a small gap to start searching, but ensure we're definitely below the title
@@ -633,11 +671,19 @@ def find_table_bounds_by_expanding_from_title(page, title_info: Dict[str, float]
     
     print(f"      Searching for header below title: title_y={title_y:.1f}, search_start={search_start_y:.1f} to {search_end_y:.1f}")
     
-    # Step 4 & 5: Set initial horizontal search bounds to the width of the table title
-    # The search bounds are always centered on the center of the table title
-    # Start with a smaller initial width to avoid starting too wide
-    initial_width = max(title_width * 0.5, 100)  # Start with 50% of title width or minimum 100 points
-    expansion_increment = title_width * 0.10  # 10% of title width
+    # Step 3: Set initial horizontal search bounds based on alignment
+    # For centered titles: expand from center
+    # For left-aligned titles: expand from left edge
+    if alignment == "left_aligned":
+        # Start from title left edge, expand rightward
+        initial_width = max(title_width * 1, 100)
+        expansion_increment = title_width * 0.20
+        expansion_anchor = title_left  # Anchor to left edge
+    else:  # centered
+        # Start from title center, expand symmetrically
+        initial_width = max(title_width * 0.5, 100)
+        expansion_increment = title_width * 0.10
+        expansion_anchor = title_x_center  # Anchor to center
     
     words = page.extract_words()
     
@@ -652,9 +698,15 @@ def find_table_bounds_by_expanding_from_title(page, title_info: Dict[str, float]
     best_match_y = float('inf')
     
     while iteration < max_iterations:
-        # Calculate current bounds, always centered on title center
-        current_left = max(0, title_x_center - current_width / 2)
-        current_right = min(page_width, title_x_center + current_width / 2)
+        # Calculate current bounds based on alignment
+        if alignment == "left_aligned":
+            # Expand from left edge: left bound is anchor, right bound expands
+            current_left = max(0, expansion_anchor)
+            current_right = min(page_width, expansion_anchor + current_width)
+        else:  # centered
+            # Expand from center: symmetric expansion
+            current_left = max(0, expansion_anchor - current_width / 2)
+            current_right = min(page_width, expansion_anchor + current_width / 2)
         
         # Check if we've hit page bounds on both sides
         if current_left <= 0 and current_right >= page_width:
@@ -775,20 +827,143 @@ def find_table_bounds_by_expanding_from_title(page, title_info: Dict[str, float]
                         print(f"      Continuing expansion to include header's left edge...")
                     # Continue expanding - the best_match is already saved, so we'll check again next iteration
                 else:
-                    # Header's left edge is within bounds - we can use these bounds
+                    # Header's left edge is within bounds - we found the first column header
+                    # Now search for the last column header if expected
+                    first_header_y = candidate_match["top"]
+                    first_header_bottom = candidate_match["bottom"]
+                    
+                    # Search for last column header in the same row (within y tolerance)
+                    last_header_match = None
+                    last_header_text = None
+                    if expected_last_headers:
+                        # Search for last column header in the header row
+                        # First, try searching the entire page width to find it quickly
+                        print(f"      Searching for last column header in header row (y={first_header_y:.1f})")
+                        print(f"      Expected last headers: {expected_last_headers}")
+                        
+                        # Find all words on the same line as the first header, to the right of first header
+                        # Start with a wide search (entire page width) to find the last header
+                        header_row_words_all = [w for w in words 
+                                              if abs(w["top"] - first_header_y) <= 5  # Same line
+                                              and w["x0"] >= header_left]  # To the right of first header
+                        
+                        if header_row_words_all:
+                            print(f"      Found {len(header_row_words_all)} words in header row to the right of first header")
+                            # Sort by x position (rightmost first for efficiency)
+                            header_row_words_all.sort(key=lambda w: w["x0"], reverse=True)
+                            
+                            # Try to match last column header, starting from rightmost words
+                            for word in header_row_words_all:
+                                # Try building phrases starting from this word
+                                same_line_words = [w for w in words 
+                                                if abs(w["top"] - word["top"]) <= 5
+                                                and w["x0"] >= word["x0"]]
+                                same_line_words.sort(key=lambda w: w["x0"])
+                                
+                                # Try phrases of increasing length
+                                for phrase_length in range(1, min(5, len(same_line_words) + 1)):
+                                    phrase_words = same_line_words[:phrase_length]
+                                    phrase_text = " ".join(w["text"].strip() for w in phrase_words)
+                                    
+                                    for expected_last in expected_last_headers:
+                                        if is_complete_header_match(phrase_text, expected_last):
+                                            last_header_match = phrase_words[-1]  # Rightmost word
+                                            last_header_text = phrase_text
+                                            print(f"      Found last column header '{last_header_text}' at x={last_header_match['x1']:.1f}")
+                                            break
+                                    
+                                    if last_header_match:
+                                        break
+                                
+                                if last_header_match:
+                                    break
+                                
+                                # Try single word match
+                                word_text = word["text"].strip()
+                                for expected_last in expected_last_headers:
+                                    if is_complete_header_match(word_text, expected_last):
+                                        last_header_match = word
+                                        last_header_text = word_text
+                                        print(f"      Found last column header '{last_header_text}' at x={last_header_match['x1']:.1f}")
+                                        break
+                                
+                                if last_header_match:
+                                    break
+                        
+                        if last_header_match:
+                            # Use last header's right edge as the right bound
+                            final_right = min(page_width, last_header_match["x1"] + 10)  # Small padding
+                            print(f"      Using last header right edge: {final_right:.1f}")
+                        else:
+                            print(f"      ⚠️  Last column header not found in header row (y={first_header_y:.1f} ±5)")
+                            print(f"      Searched {len(header_row_words_all)} words from x={header_left:.1f} to page edge")
+                            if header_row_words_all:
+                                rightmost_word = header_row_words_all[0]  # Already sorted reverse
+                                print(f"      Rightmost word found: '{rightmost_word['text']}' at x={rightmost_word['x1']:.1f}, y={rightmost_word['top']:.1f}")
+                            
+                            # Try with wider y-tolerance as fallback
+                            print(f"      Trying wider y-tolerance search (±10 instead of ±5)...")
+                            header_row_words_wide = [w for w in words 
+                                                  if abs(w["top"] - first_header_y) <= 10  # Wider tolerance
+                                                  and w["x0"] >= header_left]
+                            header_row_words_wide.sort(key=lambda w: w["x0"], reverse=True)
+                            
+                            for word in header_row_words_wide:
+                                word_text = word["text"].strip()
+                                for expected_last in expected_last_headers:
+                                    if is_complete_header_match(word_text, expected_last):
+                                        last_header_match = word
+                                        last_header_text = word_text
+                                        print(f"      Found last column header '{last_header_text}' with wider tolerance at x={last_header_match['x1']:.1f}")
+                                        break
+                                
+                                if last_header_match:
+                                    break
+                            
+                            if last_header_match:
+                                final_right = min(page_width, last_header_match["x1"] + 10)
+                                print(f"      Using last header right edge: {final_right:.1f}")
+                            else:
+                                # Fall back to using expansion bounds
+                                final_right = current_right
+                                print(f"      Using expansion bounds: {final_right:.1f}")
+                    else:
+                        final_right = current_right
+                    
                     final_left = current_left
-                    final_right = current_right
-                    table_top = candidate_match["top"]
+                    table_top = first_header_y
+                    
+                    # Detect header row bounds (top and bottom of header row)
+                    # IMPORTANT: Exclude any words that are part of the title
+                    # Title ends at title_y, so we should only include words that are clearly below the title
+                    title_bottom = title_info["bottom"]
+                    min_header_y = title_bottom + 5  # Header must be at least 5 points below title
+                    
+                    header_row_words_all = [w for w in words 
+                                          if abs(w["top"] - first_header_y) <= 5  # Same line as first header
+                                          and w["top"] >= min_header_y  # Below title (exclude title words)
+                                          and final_left <= w["x0"] <= final_right]
+                    if header_row_words_all:
+                        header_top = min(w["top"] for w in header_row_words_all)
+                        header_bottom = max(w["bottom"] for w in header_row_words_all)
+                    else:
+                        # Fallback: use first header's bounds, but ensure it's below title
+                        header_top = max(first_header_y, min_header_y)
+                        header_bottom = first_header_bottom
                     
                     print(f"      Found complete header '{candidate_text}' at x={header_left:.1f} after expansion width={current_width:.1f}")
                     print(f"      Header left edge ({header_left:.1f}) is within bounds: left={final_left:.1f}, right={final_right:.1f}")
+                    print(f"      Header row bounds: top={header_top:.1f}, bottom={header_bottom:.1f} (title bottom={title_bottom:.1f})")
                     
                     return {
                         "left": final_left,
                         "right": final_right,
                         "top": table_top,
                         "width": final_right - final_left,
-                        "found_header": candidate_text
+                        "found_header": candidate_text,
+                        "found_last_header": last_header_text,
+                        "header_top": header_top,
+                        "header_bottom": header_bottom
                     }
         
         # Step 6: Expand width by 10% of title width, remaining centered
@@ -858,7 +1033,180 @@ def find_table_bounds_by_expanding_from_title(page, title_info: Dict[str, float]
     return None
 
 
-def find_first_column_header(page, table_top: float, left_bound: float, 
+def refine_bounds_with_header_search(page, title_info: Dict[str, float],
+                                     table_info: Dict[str, float],
+                                     expected_headers: List[str],
+                                     expected_last_headers: List[str] = None,
+                                     max_right_bound: float = None) -> Dict[str, float]:
+    """
+    Post-processing function that refines table bounds for any table by searching
+    for expected first/last column headers below the title.
+
+    This computes precise header row bounds (header_top/header_bottom) and extends
+    right_bound to include the last column header if found.
+
+    Args:
+        page: pdfplumber page object
+        title_info: Dict with title position info (left, right, bottom, x_center)
+        table_info: Dict with initial table bounds (left, right, top, width)
+        expected_headers: List of possible first column header names
+        expected_last_headers: Optional list of possible last column header names
+        max_right_bound: Maximum allowed right bound (e.g., midpoint for side-by-side tables)
+
+    Returns:
+        Updated table_info dict with header_top, header_bottom, and possibly extended right_bound
+    """
+    if max_right_bound is None:
+        max_right_bound = page.width
+
+    title_bottom = title_info["bottom"]
+    min_header_y = title_bottom + 5  # Header must be at least 5 points below title
+
+    # Search below the title for words matching expected first column headers
+    words = page.extract_words()
+    search_start_y = min_header_y
+    search_end_y = title_bottom + 200  # Search up to 200 points below title
+
+    # Find first column header
+    matched_header_word = None
+    matched_header_text = None
+    matched_header_y = float('inf')
+
+    for word in words:
+        if not (search_start_y <= word["top"] <= search_end_y):
+            continue
+        # Check single word and multi-word phrases
+        same_line_words = [w for w in words
+                          if abs(w["top"] - word["top"]) <= 5
+                          and w["x0"] >= word["x0"]]
+        same_line_words.sort(key=lambda w: w["x0"])
+
+        for phrase_length in range(1, min(5, len(same_line_words) + 1)):
+            phrase_words = same_line_words[:phrase_length]
+            phrase_text = " ".join(w["text"].strip() for w in phrase_words)
+
+            for expected in expected_headers:
+                if is_complete_header_match(phrase_text, expected):
+                    word_y = phrase_words[0]["top"]
+                    if word_y < matched_header_y:
+                        matched_header_word = phrase_words[0]
+                        matched_header_text = phrase_text
+                        matched_header_y = word_y
+                    break
+
+    if matched_header_word is None:
+        # Header not found, return table_info unchanged
+        print(f"      Refinement: first column header not found, skipping refinement")
+        return table_info
+
+    first_header_y = matched_header_word["top"]
+    print(f"      Refinement: found first column header '{matched_header_text}' at y={first_header_y:.1f}")
+
+    # Find all words on the same line as the first header (Y tolerance ±5),
+    # excluding title words (must be below title_bottom + 5)
+    header_row_words = [w for w in words
+                        if abs(w["top"] - first_header_y) <= 5
+                        and w["top"] >= min_header_y]
+
+    if header_row_words:
+        header_top = min(w["top"] for w in header_row_words)
+        header_bottom = max(w["bottom"] for w in header_row_words)
+        table_info["header_top"] = header_top
+        table_info["header_bottom"] = header_bottom
+        table_info["found_header"] = matched_header_text
+        print(f"      Refinement: header row bounds: top={header_top:.1f}, bottom={header_bottom:.1f}")
+
+    # Search for last column header in the header row, to the RIGHT of the first header
+    # Search up to max_right_bound (not limited to current table bounds, since the whole
+    # point is to EXTEND the right bound to include the last header)
+    first_header_x1 = matched_header_word["x1"]
+    if expected_last_headers and header_row_words:
+        last_header_match = None
+        last_header_text = None
+
+        # Search ALL words on the header row to the right of the first header,
+        # up to max_right_bound (not just within current table bounds)
+        header_row_right = [w for w in words
+                            if abs(w["top"] - first_header_y) <= 5
+                            and w["top"] >= min_header_y
+                            and w["x0"] > first_header_x1
+                            and w["x0"] <= max_right_bound]
+        # Sort right-to-left to find rightmost match first
+        header_row_right_sorted = sorted(header_row_right, key=lambda w: w["x0"], reverse=True)
+        print(f"      Refinement: searching for last header among {len(header_row_right)} words to right of first header (x>{first_header_x1:.1f}, max={max_right_bound:.1f})")
+        if header_row_right_sorted:
+            rightmost_texts = [f"'{w['text']}' x={w['x0']:.1f}" for w in header_row_right_sorted[:5]]
+            print(f"      Refinement: rightmost words: {rightmost_texts}")
+
+        for word in header_row_right_sorted:
+            # Try building phrases starting from this word (constrained to header row, right of first header)
+            phrase_candidates = [w for w in words
+                                if abs(w["top"] - word["top"]) <= 5
+                                and w["x0"] >= word["x0"]
+                                and w["x0"] > first_header_x1
+                                and w["x0"] <= max_right_bound]
+            phrase_candidates.sort(key=lambda w: w["x0"])
+
+            for phrase_length in range(1, min(5, len(phrase_candidates) + 1)):
+                phrase_words = phrase_candidates[:phrase_length]
+                phrase_text = " ".join(w["text"].strip() for w in phrase_words)
+
+                for expected_last in expected_last_headers:
+                    if is_complete_header_match(phrase_text, expected_last):
+                        last_header_match = phrase_words[-1]  # Rightmost word
+                        last_header_text = phrase_text
+                        break
+                if last_header_match:
+                    break
+            if last_header_match:
+                break
+
+        if not last_header_match:
+            # Fallback: try wider y-tolerance (±10 instead of ±5)
+            print(f"      Refinement: last header not found with ±5 tolerance, trying ±10...")
+            header_row_right_wide = [w for w in words
+                                     if abs(w["top"] - first_header_y) <= 10
+                                     and w["top"] >= min_header_y
+                                     and w["x0"] > first_header_x1
+                                     and w["x0"] <= max_right_bound]
+            header_row_right_wide.sort(key=lambda w: w["x0"], reverse=True)
+            if header_row_right_wide:
+                wide_texts = [f"'{w['text']}' x={w['x0']:.1f} y={w['top']:.1f}" for w in header_row_right_wide[:5]]
+                print(f"      Refinement: words with ±10 tolerance: {wide_texts}")
+
+            for word in header_row_right_wide:
+                word_text = word["text"].strip()
+                for expected_last in expected_last_headers:
+                    if is_complete_header_match(word_text, expected_last):
+                        last_header_match = word
+                        last_header_text = word_text
+                        print(f"      Refinement: found last column header '{last_header_text}' with wider tolerance at x={last_header_match['x1']:.1f}, y={word['top']:.1f}")
+                        break
+                if last_header_match:
+                    break
+
+        if last_header_match:
+            new_right = min(last_header_match["x1"] + 10, max_right_bound)
+            print(f"      Refinement: found last column header '{last_header_text}' at x={last_header_match['x1']:.1f}")
+            print(f"      Refinement: extending right_bound from {table_info['right']:.1f} to {new_right:.1f} (max={max_right_bound:.1f})")
+            table_info["right"] = new_right
+            table_info["width"] = new_right - table_info["left"]
+            table_info["found_last_header"] = last_header_text
+        else:
+            print(f"      Refinement: last column header not found in header row (y={first_header_y:.1f} ±5/±10)")
+            # Debug: show what words ARE on the header row to help diagnose
+            all_right_words = [w for w in words
+                               if abs(w["top"] - first_header_y) <= 15
+                               and w["x0"] > first_header_x1]
+            if all_right_words:
+                all_right_words.sort(key=lambda w: w["x0"], reverse=True)
+                debug_texts = [f"'{w['text']}' x={w['x0']:.1f} y={w['top']:.1f}" for w in all_right_words[:10]]
+                print(f"      Refinement DEBUG: words to right of first header (±15): {debug_texts}")
+
+    return table_info
+
+
+def find_first_column_header(page, table_top: float, left_bound: float,
                             right_bound: float, expected_headers: List[str],
                             title_y: float = None) -> Optional[str]:
     """
@@ -1094,6 +1442,12 @@ def analyze_pdf_for_tables(pdf_file, generator_config: Dict[str, Any], pdf_name:
                 else:
                     print(f"      ✓ All required words present: {required_words}")
                 
+                # Extract expected headers for all code paths
+                expected_headers = title_config.get("expected_first_column_header", ["EC3EnrollmentStatus", "pw_contactname"])
+                expected_last_headers = title_config.get("expected_last_column_header", None)
+                if expected_last_headers and not isinstance(expected_last_headers, list):
+                    expected_last_headers = [expected_last_headers]
+
                 # Determine table bounds
                 # Special handling for page2_text: expand from title center until finding first column header
                 if title_config.get("label") == "page2_text":
@@ -1103,12 +1457,12 @@ def analyze_pdf_for_tables(pdf_file, generator_config: Dict[str, Any], pdf_name:
                     print(f"      VERIFY: Expected title: '{title_text}'")
                     if title_info['text'].lower() != title_text.lower():
                         print(f"      ⚠️  WARNING: Title text mismatch! Found '{title_info['text']}' but expected '{title_text}'")
-                    expected_headers = title_config.get("expected_first_column_header", ["EC3EnrollmentStatus", "pw_contactname"])
                     table_info = find_table_bounds_by_expanding_from_title(
                         page,
                         title_info,  # Pass full title_info dict
                         page.width,
                         expected_headers,
+                        expected_last_headers=expected_last_headers,
                         gap=title_to_table_gap
                     )
                 # If this page has multiple tables, use calculated boundaries from midpoints
@@ -1143,19 +1497,30 @@ def analyze_pdf_for_tables(pdf_file, generator_config: Dict[str, Any], pdf_name:
                         title_left=title_info["left"],
                         title_right=title_info["right"]
                     )
-                
+
+                # Refine bounds for non-page2_text tables using header search
+                if table_info and title_config.get("label") != "page2_text":
+                    # For midpoint-bounded tables, cap right extension at the midpoint
+                    if page_idx in page_boundaries and title_idx in page_boundaries[page_idx]:
+                        _, max_right = page_boundaries[page_idx][title_idx]
+                    else:
+                        max_right = page.width
+                    table_info = refine_bounds_with_header_search(
+                        page, title_info, table_info, expected_headers,
+                        expected_last_headers=expected_last_headers,
+                        max_right_bound=max_right)
+
                 if table_info:
                     print(f"      Table bounds: left={table_info['left']:.1f}, right={table_info['right']:.1f}, top={table_info['top']:.1f}")
                     print(f"      Table width: {table_info['width']:.1f} points")
                     print(f"      Table center: {(table_info['left'] + table_info['right']) / 2:.1f} (title center: {title_info['x_center']:.1f})")
-                    
+
                     # Find first column header (search near title, not table_top which may be data)
-                    # For page2_text, the expansion method already found the header, so we can extract it
-                    expected_headers = title_config.get("expected_first_column_header", ["EC3EnrollmentStatus", "pw_contactname"])
-                    if title_config.get("label") == "page2_text" and "found_header" in table_info:
-                        # Use the header found during expansion
+                    # If expansion or refinement already found the header, use it
+                    if "found_header" in table_info:
+                        # Use the header found during expansion or refinement
                         target_header = table_info["found_header"]
-                        print(f"      First column header (from expansion): '{target_header}'")
+                        print(f"      First column header (detected): '{target_header}'")
                     else:
                         # Use normal header detection
                         target_header = find_first_column_header(
@@ -1187,24 +1552,36 @@ def analyze_pdf_for_tables(pdf_file, generator_config: Dict[str, Any], pdf_name:
                         print(f"      Estimated start_top from title: {estimated_start_top:.1f}")
                     
                     # Create page configuration
+                    extraction_config = {
+                        "target_header": target_header,
+                        "expected_first_column_header": expected_headers,  # Store all expected headers for use during extraction
+                        "start_top": round(estimated_start_top),
+                        "left_bound": round(table_info["left"]),
+                        "right_bound": round(table_info["right"]),
+                        "max_shift": hints.get("max_shift", 150),
+                        "delta": hints.get("delta", 20),
+                        "header_height": hints.get("typical_header_height", 25),
+                        "use_explicit_vertical_lines": defaults.get("use_explicit_vertical_lines", True),
+                        "minimum_column_width": hints.get("minimum_column_width", 17)
+                    }
+                    
+                    # Add last column header if found
+                    if expected_last_headers:
+                        extraction_config["expected_last_column_header"] = expected_last_headers
+                    
+                    # Add precise header bounds if available (from expansion or refinement)
+                    if "header_top" in table_info and "header_bottom" in table_info:
+                        extraction_config["header_top"] = round(table_info["header_top"])
+                        extraction_config["header_bottom"] = round(table_info["header_bottom"])
+                        print(f"      Header row bounds: top={table_info['header_top']:.1f}, bottom={table_info['header_bottom']:.1f}")
+                    
                     page_config = {
                         "page_index": page_idx,
                         "label": title_config["label"],
                         "parser_module": title_config["parser_module"],
                         "parser_function": title_config["parser_function"],
                         "test_function": title_config.get("test_function", "test_row"),
-                        "extraction": {
-                            "target_header": target_header,
-                            "expected_first_column_header": expected_headers,  # Store all expected headers for use during extraction
-                            "start_top": round(estimated_start_top),
-                            "left_bound": round(table_info["left"]),
-                            "right_bound": round(table_info["right"]),
-                            "max_shift": hints.get("max_shift", 150),
-                            "delta": hints.get("delta", 20),
-                            "header_height": hints.get("typical_header_height", 25),
-                            "use_explicit_vertical_lines": defaults.get("use_explicit_vertical_lines", True),
-                            "minimum_column_width": hints.get("minimum_column_width", 17)
-                        }
+                        "extraction": extraction_config
                     }
                     
                     found_configs.append(page_config)

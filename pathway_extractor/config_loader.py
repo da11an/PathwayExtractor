@@ -28,10 +28,19 @@ class PageConfig:
         else:
             # Fallback to using target_header as a single-item list
             self.expected_headers = [self.target_header]
+        # Store expected last column headers (optional)
+        expected_last_headers = extraction.get("expected_last_column_header", None)
+        if expected_last_headers:
+            self.expected_last_headers = expected_last_headers if isinstance(expected_last_headers, list) else [expected_last_headers]
+        else:
+            self.expected_last_headers = None
         self.start_top = extraction.get("start_top", 177)
         self.max_shift = extraction.get("max_shift", 150)
         self.delta = extraction.get("delta", 20)
         self.header_height = extraction.get("header_height", 25)
+        # Precise header row bounds (optional - if provided, use instead of fixed header_height)
+        self.header_top = extraction.get("header_top", None)
+        self.header_bottom = extraction.get("header_bottom", None)
         self.use_explicit_vertical_lines = extraction.get("use_explicit_vertical_lines", True)
         self.minimum_column_width = extraction.get("minimum_column_width", 17)
         # Left and right bounds (None means use full page width)

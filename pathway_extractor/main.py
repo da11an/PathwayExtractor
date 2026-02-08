@@ -71,22 +71,33 @@ def main():
             print("\n❌ Could not generate configuration. No tables found in PDF.")
             print("   Please provide a config manually with --config")
             return
-        
-        # Generate temporary config file
+
+        # Store detected page_index back into generator_config entries
+        # so the v2 extraction path can look up page indices directly
+        page_index_by_label = {fc["label"]: fc["page_index"] for fc in found_configs}
+        for title_entry in generator_config["table_titles"]:
+            label = title_entry["label"]
+            if label in page_index_by_label:
+                title_entry["page_index"] = page_index_by_label[label]
+                print(f"   Mapped {label} -> page {title_entry['page_index']}")
+
+        # Generate temporary config file (still useful for v1 fallback)
         auto_config_path = config_dir / "format_auto_generated.json"
-        generate_config_file(found_configs, str(auto_config_path), "format_auto_generated", 
+        generate_config_file(found_configs, str(auto_config_path), "format_auto_generated",
                            "Auto-generated configuration from ZIP analysis")
-        
+
         # Use the generated config
         args.config = str(auto_config_path)
         print(f"✅ Using auto-generated config: {auto_config_path}")
-    
-    # Load configuration
+    else:
+        generator_config = None
+
+    # Load configuration (used as fallback for v1 path)
     config = load_config(args.config)
     print(f"📋 Using extraction format: {config.format_name}")
     if config.description:
         print(f"   {config.description}")
-    
+
     # Create debug directory if debug mode is enabled
     debug_dir = None
     if args.debug:
@@ -95,14 +106,15 @@ def main():
         debug_dir = Path.cwd() / "debug_output" / output_dir_name
         debug_dir.mkdir(parents=True, exist_ok=True)
         print(f"🐛 Debug mode enabled. Debug artifacts will be saved to: {debug_dir}")
-    
+
     class_page_records = extract_records_from_zip(
         zip_path=str(zip_file),
         max_files=None,
-        filename_filter=None,
+        filename_filter="Prince",
         debug=args.debug,
         config=config,
-        debug_dir=debug_dir
+        debug_dir=debug_dir,
+        generator_config=generator_config
     )
 
     regions = Counter([

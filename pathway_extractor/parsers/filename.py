@@ -4,6 +4,25 @@ import re
 def parse_filename(file_name: str) -> dict:
     base = os.path.splitext(file_name)[0].strip()
 
+    # Handle underscore-based format without " - " separator
+    # e.g. "Utah_EC3,_V,_Thursday,_10_00_AM_Prince_20260204_142732"
+    if " - " not in base and "_" in base:
+        # Strip timestamp suffix (YYYYMMDD_HHMMSS)
+        ts_match = re.search(r'_(\d{8}_\d{6})$', base)
+        if ts_match:
+            base_no_ts = base[:ts_match.start()]
+            # Find AM/PM marker to split metadata from facilitator
+            ampm_match = re.search(r'_([AP]M)_', base_no_ts)
+            if ampm_match:
+                metadata_underscored = base_no_ts[:ampm_match.end() - 1]  # up to and including AM/PM
+                facilitator = base_no_ts[ampm_match.end():]  # after AM/PM_
+                # Replace underscores with spaces, but preserve underscores between digits (time format)
+                metadata_part = metadata_underscored.replace(',_', ', ')
+                metadata_part = re.sub(r'(?<!\d)_|_(?!\d)', ' ', metadata_part)
+                facilitators_part = facilitator.replace('_', ' ')
+                # Reconstruct as normalized format and re-enter
+                base = f"{metadata_part} - {facilitators_part}"
+
     if " - " not in base:
         raise ValueError(f"Missing ' - ' in filename: {file_name}")
 
