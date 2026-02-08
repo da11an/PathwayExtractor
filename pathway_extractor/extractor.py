@@ -309,7 +309,11 @@ def find_header_row(page, title_bottom, expected_first_headers, y_search_range=6
 
 def compute_column_boundaries(header_positions, left_bound=None, right_bound=None):
     """
-    Compute column boundaries from header positions using midpoints between adjacent headers.
+    Compute column boundaries using the x0 (left edge) of each header as the divider.
+
+    Data values are right-aligned to their column header's x1, so using each header's
+    x0 as the boundary ensures long Name column data doesn't spill into the first
+    data column.
 
     Args:
         header_positions: [(label, x0, x1), ...] sorted by x0
@@ -330,13 +334,14 @@ def compute_column_boundaries(header_positions, left_bound=None, right_bound=Non
         if i == 0:
             col_start = first_start
         else:
-            # Midpoint between previous header's x1 and this header's x0
-            col_start = (header_positions[i - 1][2] + header_positions[i][1]) / 2
+            # Use this header's x0 as the column start
+            col_start = header_positions[i][1]
 
         if i == len(header_positions) - 1:
             col_end = last_end
         else:
-            col_end = (header_positions[i][2] + header_positions[i + 1][1]) / 2
+            # Use next header's x0 as this column's end
+            col_end = header_positions[i + 1][1]
 
         boundaries.append((col_start, col_end))
 
