@@ -1,6 +1,6 @@
 import re
 
-from pathway_extractor.parsers.utils import clean_value, normalize_header
+from pathway_extractor.parsers.utils import clean_value, normalize_header, merge_wrapped_name_rows
 
 
 def test_row(row):
@@ -11,6 +11,9 @@ def test_row(row):
 
 
 def parse_page_3_table(table: list, headers: list, target_header: str = "pw_contactname") -> dict:
+    # Merge wrapped name rows before processing
+    table = merge_wrapped_name_rows(table)
+    
     results = []
     normalized_headers = [normalize_header(header) for header in headers]
     # Normalize the target_header for comparison

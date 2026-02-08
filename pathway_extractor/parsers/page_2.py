@@ -1,6 +1,6 @@
 import re
 
-from pathway_extractor.parsers.utils import clean_value
+from pathway_extractor.parsers.utils import clean_value, merge_wrapped_name_rows
 
 
 def test_row(row):
@@ -11,6 +11,9 @@ def test_row(row):
 
 
 def parse_page_2_table(table: list, headers: list, target_header: str = "pw_contactname") -> dict:
+    # Merge wrapped name rows before processing
+    table = merge_wrapped_name_rows(table)
+    
     results = []
 
     # Skip header row(s)

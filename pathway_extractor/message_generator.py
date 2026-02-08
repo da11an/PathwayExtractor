@@ -264,7 +264,16 @@ def analyze_student_progress(student_data: dict) -> Dict[str, any]:
     average_per_week = block_total / num_weeks if num_weeks > 0 else 0
     
     # All-time total from skill units
-    alltime_total = sum(v for v in skill_units.values() if isinstance(v, (int, float)) and v > 0)
+    # Only sum known skill fields to avoid double-counting if a "Total" column exists
+    # Headers are normalized: "vocab"->"vocabulary", "read"->"reading", "write"->"writing", 
+    # "speak"->"speaking", "listen"->"listening", "Total"->"total"
+    known_skill_fields = {"grammar", "vocabulary", "reading", "writing", "speaking", "listening"}
+    alltime_total = sum(
+        v for k, v in skill_units.items() 
+        if k.lower() in known_skill_fields 
+        and isinstance(v, (int, float)) 
+        and v > 0
+    )
     
     # === Certificate Completion Tracking ===
     # Check how many skills are at their required level

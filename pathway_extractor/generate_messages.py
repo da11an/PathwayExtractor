@@ -369,7 +369,7 @@ def generate_class_encouragement_html(student_messages: list, class_info: dict, 
         <div class="message">💬 {message}</div>
         <div class="stats">
             <span class="stat">This Block: {block_total} units</span>
-            <span class="stat">All-Time: {alltime_total} units</span>
+            <!--<span class="stat">All-Time: {alltime_total} units</span>-->
             <span class="{completion_stat_class}">Completion: {certified_count}/6 skills</span>
         </div>
     </div>
