@@ -10,9 +10,9 @@ def test_row(row):
     return False
 
 
-def parse_page_4_table(table: list, headers: list, target_header: str = "pw_contactname") -> dict:
-    # Merge wrapped name rows before processing
-    table = merge_wrapped_name_rows(table)
+def parse_page_4_table(table: list, headers: list, target_header: str = "pw_contactname", known_names: set = None) -> dict:
+    # Merge wrapped name rows before processing, using known names from page 2 for validation
+    table = merge_wrapped_name_rows(table, known_names=known_names)
     
     results = []
     

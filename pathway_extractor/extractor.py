@@ -585,9 +585,45 @@ def parse_record(file_name: str, page_tables: dict, page_headers: dict, pdf_size
         "pdf_size": pdf_size,
     }
     
-    # Apply parsers for each configured page
-    for page_config in config.get_page_configs():
+    # Collect names from page 2 (first table) to use for cross-page validation
+    # Page 2 has more space for names, so they don't wrap there - use as ground truth
+    known_names = set()
+    page_configs = config.get_page_configs()
+    
+    # First pass: Parse page 2 to collect known names
+    for page_config in page_configs:
         label = page_config.label
+        # Check if this is page 2 (weekly_submissions table)
+        if label == "page2_text" or "page_2" in label.lower():
+            parser_func = page_config.get_parser_function()
+            table_data = page_tables.get(label, [])
+            headers = page_headers.get(label, [])
+            
+            if debug:
+                print(f"🔍 Parsing {label} (first pass for name collection): {len(table_data)} rows, {len(headers)} headers")
+            
+            # Parse page 2 to get the names
+            result = parser_func(table_data, headers, target_header=page_config.target_header)
+            parsed.update(result)
+            
+            # Extract names from weekly_submissions
+            weekly_submissions = result.get("weekly_submissions", [])
+            for item in weekly_submissions:
+                name = item.get("student_name")
+                if name and isinstance(name, str) and name.strip():
+                    known_names.add(name.strip())
+            
+            if debug:
+                print(f"   Collected {len(known_names)} known names from page 2")
+            break
+    
+    # Second pass: Parse remaining pages with known names for validation
+    for page_config in page_configs:
+        label = page_config.label
+        # Skip page 2 if we already processed it
+        if label == "page2_text" or "page_2" in label.lower():
+            continue
+            
         parser_func = page_config.get_parser_function()
         table_data = page_tables.get(label, [])
         headers = page_headers.get(label, [])
@@ -599,8 +635,14 @@ def parse_record(file_name: str, page_tables: dict, page_headers: dict, pdf_size
             if headers:
                 print(f"   Headers: {headers}")
         
-        # Pass the target_header to the parser function
-        result = parser_func(table_data, headers, target_header=page_config.target_header)
+        # Pass the target_header and known_names to the parser function
+        # Check if parser accepts known_names parameter
+        import inspect
+        sig = inspect.signature(parser_func)
+        if 'known_names' in sig.parameters:
+            result = parser_func(table_data, headers, target_header=page_config.target_header, known_names=known_names)
+        else:
+            result = parser_func(table_data, headers, target_header=page_config.target_header)
         
         if debug:
             print(f"   Parser result keys: {list(result.keys())}")
@@ -953,8 +995,49 @@ def _extract_records_v2(
                         "pdf_size": pdf_size,
                     }
 
+                    # Collect names from page 2 (first table) to use for cross-page validation
+                    known_names = set()
+                    
+                    # First pass: Parse page 2 to collect known names
                     for title_entry in table_titles:
                         label = title_entry["label"]
+                        # Check if this is page 2 (weekly_submissions table)
+                        if label == "page2_text" or "page_2" in label.lower():
+                            parser_module_name = title_entry["parser_module"]
+                            parser_function_name = title_entry["parser_function"]
+                            target_header = title_entry.get("expected_first_column_header", ["Name"])[0]
+                            
+                            table_data = page_tables.get(label, [])
+                            headers = page_headers.get(label, [])
+                            
+                            # Load and call the parser
+                            mod = importlib.import_module(parser_module_name)
+                            parser_func = getattr(mod, parser_function_name)
+                            
+                            if debug:
+                                print(f"\n   Parsing {label} (first pass for name collection): {len(table_data)} rows, {len(headers)} headers")
+                            
+                            result = parser_func(table_data, headers, target_header=target_header)
+                            parsed.update(result)
+                            
+                            # Extract names from weekly_submissions
+                            weekly_submissions = result.get("weekly_submissions", [])
+                            for item in weekly_submissions:
+                                name_val = item.get("student_name")
+                                if name_val and isinstance(name_val, str) and name_val.strip():
+                                    known_names.add(name_val.strip())
+                            
+                            if debug:
+                                print(f"   Collected {len(known_names)} known names from page 2")
+                            break
+                    
+                    # Second pass: Parse remaining pages with known names for validation
+                    for title_entry in table_titles:
+                        label = title_entry["label"]
+                        # Skip page 2 if we already processed it
+                        if label == "page2_text" or "page_2" in label.lower():
+                            continue
+                            
                         parser_module_name = title_entry["parser_module"]
                         parser_function_name = title_entry["parser_function"]
                         target_header = title_entry.get("expected_first_column_header", ["Name"])[0]
@@ -971,7 +1054,13 @@ def _extract_records_v2(
                             if headers:
                                 print(f"   Headers: {headers}")
 
-                        result = parser_func(table_data, headers, target_header=target_header)
+                        # Check if parser accepts known_names parameter
+                        import inspect
+                        sig = inspect.signature(parser_func)
+                        if 'known_names' in sig.parameters:
+                            result = parser_func(table_data, headers, target_header=target_header, known_names=known_names)
+                        else:
+                            result = parser_func(table_data, headers, target_header=target_header)
                         parsed.update(result)
 
                     if debug:

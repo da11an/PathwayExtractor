@@ -13,6 +13,7 @@ from pathway_extractor.analytics import calculate_class_averages, plot_class_ave
 from pathway_extractor.config_loader import load_config
 from pathway_extractor.config_generator import analyze_pdf_for_tables, generate_config_file
 from collections import Counter
+from copy import deepcopy
 
 
 def main():
@@ -110,12 +111,14 @@ def main():
     class_page_records = extract_records_from_zip(
         zip_path=str(zip_file),
         max_files=None,
-        filename_filter=None,
+        filename_filter="Prince",
         debug=args.debug,
         config=config,
         debug_dir=debug_dir,
         generator_config=generator_config
     )
+
+    class_page_records_copy = deepcopy(class_page_records)
 
     regions = Counter([
         item.get('class_info', {}).get('region', "⚠️ Filename parsing issue: " + item.get('file')) 
@@ -154,6 +157,8 @@ def main():
 
     for record in class_student_records:
         generate_message(record, output_dir)
+
+    return class_page_records_copy, class_student_records
 
 
 if __name__ == "__main__":
