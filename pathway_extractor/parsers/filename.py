@@ -7,10 +7,11 @@ def parse_filename(file_name: str) -> dict:
     # Handle underscore-based format without " - " separator
     # e.g. "Utah_EC3,_V,_Thursday,_10_00_AM_Prince_20260204_142732"
     # e.g. "Utah_EC3_-_St_George_449_S_300_E_St._George_Utah,_IP,_Wednesday,_07_00_PM_Stillman-Stillman_20260206_174121659"
+    # e.g. "Africa_Central_English_EC3_District_1,_V,_Tuesday,_05_00_PM_Reimschussel-Watkins_20260219"
     if " - " not in base and "_" in base:
-        # Strip timestamp suffix (YYYYMMDD_HHMMSS or YYYYMMDD_HHMMSSSSS)
-        # Handle both 6-digit (seconds) and 9-digit (milliseconds) timestamps
-        ts_match = re.search(r'_(\d{8}_\d{6,9})$', base)
+        # Strip timestamp suffix: YYYYMMDD_HHMMSS, YYYYMMDD_HHMMSSSSS, or YYYYMMDD only
+        # Handle 6-digit (seconds), 9-digit (milliseconds), or date-only timestamps
+        ts_match = re.search(r'_(\d{8}(?:_\d{6,9})?)$', base)
         if ts_match:
             base_no_ts = base[:ts_match.start()]
             # Find AM/PM marker to split metadata from facilitator
@@ -18,8 +19,8 @@ def parse_filename(file_name: str) -> dict:
             if ampm_match:
                 metadata_underscored = base_no_ts[:ampm_match.end() - 1]  # up to and including AM/PM
                 facilitator = base_no_ts[ampm_match.end():]  # after AM/PM_
-                # Replace underscores with spaces, but preserve underscores between digits (time format)
-                metadata_part = metadata_underscored.replace(',_', ', ')
+                # Normalize all comma/underscore combos (,_ _,_ _, ,) to ", "
+                metadata_part = re.sub(r'_*,_*', ', ', metadata_underscored)
                 metadata_part = re.sub(r'(?<!\d)_|_(?!\d)', ' ', metadata_part)
                 facilitators_part = facilitator.replace('_', ' ')
                 # Reconstruct as normalized format and re-enter
@@ -42,7 +43,10 @@ def parse_filename(file_name: str) -> dict:
         region = region.replace("EC3", "").strip()
         region = region.replace("EC 3", "").strip()
         region = region.replace("ENGLISHCONNECT", "").strip()
+        region = region.replace("English", "").strip()
         region = region.rstrip(" -")
+        # Normalize whitespace (collapse multiple spaces)
+        region = re.sub(r'\s+', ' ', region).strip()
         return region
 
     # In-person format with location that may include commas

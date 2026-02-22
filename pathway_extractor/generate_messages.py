@@ -9,20 +9,28 @@ from pathway_extractor.message_generator import generate_encouraging_message, an
 SKILLS = ["grammar", "listen", "read", "speak", "vocabulary", "write"]
 
 def output_folder_structure(student, output_folder: Path):
-    # Sanitize folder names to avoid invalid characters
-    region = sanitize_filename(student["class_info"]["region"], max_length=100)
-    class_type = sanitize_filename(student["class_info"]["type"], max_length=100)
-    folder_level_1 = f"{region}_{class_type}"
-    
-    facilitator = sanitize_filename(student["class_info"]["facilitators"][0] if student["class_info"]["facilitators"] else "Unknown", max_length=50)
-    day = sanitize_filename(student["class_info"]["day"], max_length=20)
-    time = sanitize_filename(student["class_info"]["time"], max_length=20)
-    folder_level_2 = f"{facilitator}_{day}_{time}"
-    
-    # Create the directory structure for this student
-    student_dir = output_folder / folder_level_1 / folder_level_2
-    student_dir.mkdir(parents=True, exist_ok=True)
+    class_info = student.get("class_info", {})
 
+    # Check if required fields are present for normal folder structure
+    required_fields = ["region", "type", "day", "time"]
+    if all(class_info.get(f) for f in required_fields):
+        # Sanitize folder names to avoid invalid characters
+        region = sanitize_filename(class_info["region"], max_length=100)
+        class_type = sanitize_filename(class_info["type"], max_length=100)
+        folder_level_1 = f"{region}_{class_type}"
+
+        facilitator = sanitize_filename(class_info["facilitators"][0] if class_info.get("facilitators") else "Unknown", max_length=50)
+        day = sanitize_filename(class_info["day"], max_length=20)
+        time = sanitize_filename(class_info["time"], max_length=20)
+        folder_level_2 = f"{facilitator}_{day}_{time}"
+
+        # Create the directory structure for this student
+        student_dir = output_folder / folder_level_1 / folder_level_2
+    else:
+        # Fall back to Lost and Found for unparseable filenames
+        student_dir = output_folder / "Lost and Found"
+
+    student_dir.mkdir(parents=True, exist_ok=True)
     return student_dir
 
 
@@ -159,6 +167,11 @@ def generate_message(class_record: dict, output_path: Path):
         return
     else:
         print(f"Generating reports for {len(students)} students in class: {class_file}")
+
+    # Warn if class will end up in Lost and Found due to missing metadata
+    required_fields = ["region", "type", "day", "time"]
+    if not all(class_info.get(f) for f in required_fields):
+        print(f"📂 Class will be placed in 'Lost and Found' (filename could not be fully parsed): {class_file}")
 
     # Track class folder for encouragement HTML (all students in same class go to same folder)
     class_folder = None

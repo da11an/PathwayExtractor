@@ -579,9 +579,15 @@ def extract_largest_table(page, table_settings=None, label=None, debug=False, de
 
 def parse_record(file_name: str, page_tables: dict, page_headers: dict, pdf_size: float, config: ExtractionConfig, debug: bool = False) -> dict:
     """Parse extracted tables into a record using configured parsers."""
+    try:
+        filename_info = parse_filename(file_name)
+    except ValueError as e:
+        print(f"⚠️ Filename parsing failed: {e}")
+        filename_info = {"class_info": {}}
+
     parsed = {
         "file": file_name,
-        **parse_filename(file_name),
+        **filename_info,
         "pdf_size": pdf_size,
     }
     

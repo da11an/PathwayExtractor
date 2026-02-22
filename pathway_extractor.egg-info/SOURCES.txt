@@ -2,11 +2,13 @@ README.md
 pyproject.toml
 pathway_extractor/__init__.py
 pathway_extractor/analytics.py
+pathway_extractor/config_generator.py
 pathway_extractor/config_loader.py
 pathway_extractor/extractor.py
 pathway_extractor/generate_messages.py
 pathway_extractor/html_to_png.py
 pathway_extractor/main.py
+pathway_extractor/message_generator.py
 pathway_extractor/utils.py
 pathway_extractor.egg-info/PKG-INFO
 pathway_extractor.egg-info/SOURCES.txt
