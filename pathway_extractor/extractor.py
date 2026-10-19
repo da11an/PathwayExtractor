@@ -669,7 +669,8 @@ def extract_records_from_zip(
     debug: bool = True,
     config: Optional[ExtractionConfig] = None,
     debug_dir: Optional[Path] = None,
-    generator_config: dict = None
+    generator_config: dict = None,
+    repair_wrapped_names: bool = False
 ) -> list:
     """
     Process all PDFs in a zip file and return list of extracted records.
@@ -682,13 +683,18 @@ def extract_records_from_zip(
         config: ExtractionConfig object. If None, loads default config.
         debug_dir: Directory to save debug artifacts (Path object or None)
         generator_config: Generator config dict. When provided, uses v2 word-position extraction.
+        repair_wrapped_names: Opt-in repair backed by full-name text elsewhere in the PDF (v2 only).
 
     Returns:
         List of extracted records
     """
     # V2 path: word-position-based extraction using generator_config
     if generator_config is not None:
-        return _extract_records_v2(zip_path, max_files, filename_filter, debug, debug_dir, generator_config)
+        return _extract_records_v2(zip_path, max_files, filename_filter, debug, debug_dir, generator_config,
+                                   repair_wrapped_names=repair_wrapped_names)
+
+    if repair_wrapped_names:
+        raise ValueError("repair_wrapped_names requires the v2 generator_config extraction path")
 
     # V1 path: original pdfplumber table extraction
     if config is None:
@@ -918,7 +924,8 @@ def _extract_records_v2(
     filename_filter: str,
     debug: bool,
     debug_dir: Optional[Path],
-    generator_config: dict
+    generator_config: dict,
+    repair_wrapped_names: bool = False
 ) -> list:
     """
     V2 extraction path using word-position-based table extraction.
@@ -953,6 +960,7 @@ def _extract_records_v2(
                 with pdfplumber.open(io.BytesIO(data)) as pdf:
                     page_tables = {}
                     page_headers = {}
+                    reference_lines_by_page = {}
 
                     for config_num, title_entry in enumerate(table_titles, 1):
                         label = title_entry["label"]
@@ -983,6 +991,9 @@ def _extract_records_v2(
 
                         page_tables[label] = table
                         page_headers[label] = headers
+
+                        if repair_wrapped_names:
+                            reference_lines_by_page[page_index] = (original_page.extract_text() or "").splitlines()
 
                         if debug:
                             print(f"   Result: {len(table)} rows, {len(headers)} headers")
@@ -1050,6 +1061,13 @@ def _extract_records_v2(
 
                         table_data = page_tables.get(label, [])
                         headers = page_headers.get(label, [])
+
+                        if repair_wrapped_names:
+                            from pathway_extractor.parsers.name_repair import repair_supported_names
+                            # Evidence must be independent of this table's own fragments.
+                            reference_lines = [line for index, lines in reference_lines_by_page.items()
+                                               if index != title_entry.get("page_index") for line in lines]
+                            table_data = repair_supported_names(table_data, known_names, reference_lines)
 
                         # Load and call the parser
                         mod = importlib.import_module(parser_module_name)

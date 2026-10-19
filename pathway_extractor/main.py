@@ -29,10 +29,18 @@ def main():
         action="store_true",
         help="Enable debug output"
     )
+    parser.add_argument("--zip", type=Path, help="ZIP path (skip the file chooser)")
+    parser.add_argument("--filename-filter", help="Process only PDF filenames containing this text")
+    parser.add_argument("--repair-wrapped-names", action="store_true",
+                        help="Opt in to evidence-backed wrapped-name repair (auto-config/v2 only)")
+    parser.add_argument("--extract-only", type=Path, metavar="JSON_PATH",
+                        help="Save extracted and aggregated records; skip plots and PNG reports")
     args = parser.parse_args()
+    if args.repair_wrapped_names and args.config:
+        parser.error("--repair-wrapped-names requires auto-configuration; omit --config")
     
     downloads_dir = Path.home() / "Downloads"
-    zip_file = get_zip_file(download_dir=downloads_dir)
+    zip_file = args.zip or get_zip_file(download_dir=downloads_dir)
     
     # If no config provided, auto-generate one from the ZIP file
     if args.config is None:
@@ -111,11 +119,12 @@ def main():
     class_page_records = extract_records_from_zip(
         zip_path=str(zip_file),
         max_files=None,
-        filename_filter=None,
+        filename_filter=args.filename_filter,
         debug=args.debug,
         config=config,
         debug_dir=debug_dir,
-        generator_config=generator_config
+        generator_config=generator_config,
+        repair_wrapped_names=args.repair_wrapped_names
     )
 
     class_page_records_copy = deepcopy(class_page_records)
@@ -130,6 +139,13 @@ def main():
     print("End of class count by region report \n ------------------------- \n")
 
     class_student_records = [invert_student_data(record) for record in class_page_records]
+    if args.extract_only:
+        args.extract_only.parent.mkdir(parents=True, exist_ok=True)
+        args.extract_only.write_text(json.dumps({"records": class_page_records_copy,
+                                                "students": class_student_records},
+                                               ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"Extraction-only results: {args.extract_only}")
+        return class_page_records_copy, class_student_records
     averages = calculate_class_averages(class_student_records)
     figures = plot_class_averages_paginated(averages, classes_per_page=55)
     for i, fig in enumerate(figures):

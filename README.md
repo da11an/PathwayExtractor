@@ -143,3 +143,61 @@ Each PNG contains:
 3. Scroll to the bottom, then select all, download as zip
 4. Run program
 5. Write results to OneDrive: https://1drv.ms/f/c/947f531afae4cdba/EoN7uOBe7wRFi-foQjGAbYIByzNZLm2eFM2IpJ47KEHqVg
+
+## Testing wrapped-name repair without generating images
+
+Wrapped-name repair is **off by default**. Enable it with
+`--repair-wrapped-names` when using the default auto-configuration (v2) path.
+The existing title, header, crop, and column detection stays unchanged. The
+additional repair requires an exact full-name text span on another extracted
+PDF page, such as the no-submissions roster. Numeric cells separate text spans
+when two tables share a printed line. It does not guess from name length or
+join across numeric cells, and it leaves ambiguous cases unchanged.
+
+Run one class through extraction and aggregation, without plots, PNG rendering,
+or replacing an existing report directory:
+
+```bash
+venv_pathwayextractor/bin/python pathway_extractor/main.py \
+  --zip ~/Downloads/OneDrive_2_2-19-2026.zip \
+  --filename-filter Jahnke \
+  --repair-wrapped-names \
+  --extract-only debug_output/name_benchmark/one-class.json
+```
+
+Omit `--repair-wrapped-names` to compare the original behavior. `--zip` skips the
+file chooser; `--filename-filter` matches instructor text or another filename
+substring. `--extract-only` writes both the page records and aggregated student
+records. The auto-generated extraction config is still written as usual.
+
+For detailed comparisons, capture both modes against the same ZIP:
+
+```bash
+venv_pathwayextractor/bin/python scripts/benchmark_names.py \
+  --zip ~/Downloads/OneDrive_2_2-19-2026.zip \
+  --output debug_output/name_benchmark/latest
+venv_pathwayextractor/bin/python scripts/benchmark_names.py \
+  --zip ~/Downloads/OneDrive_2_2-19-2026.zip \
+  --output debug_output/name_benchmark/latest --repair-wrapped-names
+venv_pathwayextractor/bin/python scripts/compare_name_benchmarks.py \
+  debug_output/name_benchmark/latest --require-complete
+```
+
+Use a fresh output directory for each ZIP. For smaller stages, the benchmark
+runner accepts `--filter`, `--limit`, and `--files-from` (a JSON array of exact PDF
+filenames). It saves raw tables, word coordinates, page text, parsed records,
+aggregated records, logs, and per-PDF timings. Timings include diagnostic capture
+and exclude rendering. These files contain student data and stay in the ignored
+`debug_output/` directory. The comparison command exits nonzero on unexpected
+changes and records every change in `comparison.json`. Missing sections alone
+are not errors: the source reports legitimately contain different student sets.
+
+Focused checks:
+
+```bash
+venv_pathwayextractor/bin/python -m unittest \
+  pathway_extractor.tests.test_name_repair \
+  pathway_extractor.tests.test_name_benchmark_comparison
+venv_pathwayextractor/bin/python scripts/reproduce_wrapped_name.py
+venv_pathwayextractor/bin/python scripts/reproduce_wrapped_name.py --repair-wrapped-names
+```
