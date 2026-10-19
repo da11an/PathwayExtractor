@@ -72,7 +72,8 @@ def main():
         snapshots.clear()
         log = io.StringIO()
         start = time.perf_counter()
-        kwargs = {"repair_wrapped_names": True} if args.repair_wrapped_names else {}
+        # Diagnostic baseline must remain explicit even when production defaults change.
+        kwargs = {"repair_wrapped_names": args.repair_wrapped_names}
         with redirect_stdout(log), redirect_stderr(log):
             records = extractor.extract_records_from_zip(
                 str(args.zip), filename_filter=name, generator_config=config,

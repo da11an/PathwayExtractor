@@ -31,8 +31,11 @@ def main():
     )
     parser.add_argument("--zip", type=Path, help="ZIP path (skip the file chooser)")
     parser.add_argument("--filename-filter", help="Process only PDF filenames containing this text")
-    parser.add_argument("--repair-wrapped-names", action="store_true",
-                        help="Opt in to evidence-backed wrapped-name repair (auto-config/v2 only)")
+    repair_flags = parser.add_mutually_exclusive_group()
+    repair_flags.add_argument("--repair-wrapped-names", action="store_true", default=None,
+                              help="Enable wrapped-name repair (default with auto-configuration)")
+    repair_flags.add_argument("--no-repair-wrapped-names", dest="repair_wrapped_names", action="store_false",
+                              help="Disable wrapped-name repair to compare the original behavior")
     parser.add_argument("--extract-only", type=Path, metavar="JSON_PATH",
                         help="Save extracted and aggregated records; skip plots and PNG reports")
     args = parser.parse_args()

@@ -141,12 +141,13 @@ class ExtractionFlagTests(unittest.TestCase):
                  patch("pathway_extractor.extractor.extract_table_v2",
                        side_effect=lambda page, *a, **kw: copy.deepcopy(tables[page.index])), \
                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                flags = {} if enabled is None else {"repair_wrapped_names": enabled}
                 record = extract_records_from_zip(str(path), generator_config=config,
-                                                  repair_wrapped_names=enabled, debug=False)[0]
+                                                  debug=False, **flags)[0]
         self.assertNotIn("error", record)
         return record, sum(page.calls for page in pdf.pages)
 
-    def test_flag_defaults_to_original_behavior(self):
+    def test_flag_can_disable_repair(self):
         baseline, text_calls = self.extract(False)
         fixed, _ = self.extract(True)
         self.assertEqual(text_calls, 0)
@@ -155,6 +156,20 @@ class ExtractionFlagTests(unittest.TestCase):
         self.assertEqual(fixed["skill_scores"][0]["student_name"], "Long Student Family Dawson")
         for section in ("weekly_submissions", "submissions_by_skill"):
             self.assertEqual(baseline[section], fixed[section])
+
+    def test_default_enables_repair_for_v2(self):
+        default, _ = self.extract(None)
+        enabled, _ = self.extract(True)
+        self.assertEqual(default, enabled)
+        self.assertEqual(len(default["skill_scores"]), 1)
+
+    def test_default_preserves_legacy_v1(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "empty.zip"
+            with ZipFile(path, "w"):
+                pass
+            with redirect_stderr(io.StringIO()):
+                self.assertEqual(extract_records_from_zip(str(path), debug=False), [])
 
     def test_evidence_on_same_page_is_not_independent(self):
         baseline, _ = self.extract(False, independent=False)

@@ -670,7 +670,7 @@ def extract_records_from_zip(
     config: Optional[ExtractionConfig] = None,
     debug_dir: Optional[Path] = None,
     generator_config: dict = None,
-    repair_wrapped_names: bool = False
+    repair_wrapped_names: Optional[bool] = None
 ) -> list:
     """
     Process all PDFs in a zip file and return list of extracted records.
@@ -683,11 +683,15 @@ def extract_records_from_zip(
         config: ExtractionConfig object. If None, loads default config.
         debug_dir: Directory to save debug artifacts (Path object or None)
         generator_config: Generator config dict. When provided, uses v2 word-position extraction.
-        repair_wrapped_names: Opt-in repair backed by full-name text elsewhere in the PDF (v2 only).
+        repair_wrapped_names: Repair backed by full-name text elsewhere in the PDF (v2 only).
+            None (default) enables repair for v2 and preserves legacy v1 behavior.
 
     Returns:
         List of extracted records
     """
+    if repair_wrapped_names is None:
+        repair_wrapped_names = generator_config is not None
+
     # V2 path: word-position-based extraction using generator_config
     if generator_config is not None:
         return _extract_records_v2(zip_path, max_files, filename_filter, debug, debug_dir, generator_config,
@@ -925,7 +929,7 @@ def _extract_records_v2(
     debug: bool,
     debug_dir: Optional[Path],
     generator_config: dict,
-    repair_wrapped_names: bool = False
+    repair_wrapped_names: bool = True
 ) -> list:
     """
     V2 extraction path using word-position-based table extraction.

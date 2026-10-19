@@ -146,8 +146,10 @@ Each PNG contains:
 
 ## Testing wrapped-name repair without generating images
 
-Wrapped-name repair is **off by default**. Enable it with
-`--repair-wrapped-names` when using the default auto-configuration (v2) path.
+Wrapped-name repair is **on by default** with auto-configuration (v2), including
+normal runs without extra flags. Use `--no-repair-wrapped-names` to disable it.
+Explicit `--config` runs retain the legacy v1 behavior, which does not support
+this repair.
 The existing title, header, crop, and column detection stays unchanged. The
 additional repair requires an exact full-name text span on another extracted
 PDF page, such as the no-submissions roster. Numeric cells separate text spans
@@ -165,12 +167,15 @@ venv_pathwayextractor/bin/python pathway_extractor/main.py \
   --extract-only debug_output/name_benchmark/one-class.json
 ```
 
-Omit `--repair-wrapped-names` to compare the original behavior. `--zip` skips the
+Use `--no-repair-wrapped-names` to compare the original behavior. `--zip` skips the
 file chooser; `--filename-filter` matches instructor text or another filename
 substring. `--extract-only` writes both the page records and aggregated student
 records. The auto-generated extraction config is still written as usual.
 
 For detailed comparisons, capture both modes against the same ZIP:
+
+The diagnostic benchmark and reproduction scripts deliberately default to the
+original behavior; their `--repair-wrapped-names` flag selects the repaired mode.
 
 ```bash
 venv_pathwayextractor/bin/python scripts/benchmark_names.py \
