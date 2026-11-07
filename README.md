@@ -202,7 +202,27 @@ Focused checks:
 ```bash
 venv_pathwayextractor/bin/python -m unittest \
   pathway_extractor.tests.test_name_repair \
-  pathway_extractor.tests.test_name_benchmark_comparison
+  pathway_extractor.tests.test_name_benchmark_comparison \
+  pathway_extractor.tests.test_numeric_columns
 venv_pathwayextractor/bin/python scripts/reproduce_wrapped_name.py
 venv_pathwayextractor/bin/python scripts/reproduce_wrapped_name.py --repair-wrapped-names
 ```
+
+Numeric column placement also uses the detected headers' right edges. This keeps
+three-digit weekly counts in their columns even when their centers extend into
+the name column or preceding week. Text placement and extraction areas are
+unchanged; numbers without an unambiguous right-edge match use the original rule.
+
+For snapshots captured before this numeric correction, replay both rules without
+rendering PDFs or reports:
+
+```bash
+venv_pathwayextractor/bin/python scripts/check_numeric_columns.py \
+  debug_output/numeric_boundary/before/enabled \
+  --report debug_output/numeric_boundary/replay.json
+```
+
+This verifies the saved baseline, preserves every PDF token on its original row,
+checks that only integers change columns, and checks corrected row sums against
+the printed totals. It also runs the production parsers and aggregation on the
+corrected tables. The snapshot manifest identifies the required local source ZIP.

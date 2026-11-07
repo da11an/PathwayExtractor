@@ -313,7 +313,8 @@ def compute_column_boundaries(header_positions, left_bound=None, right_bound=Non
 
     Data values are right-aligned to their column header's x1, so using each header's
     x0 as the boundary ensures long Name column data doesn't spill into the first
-    data column.
+    data column. extract_table_by_words additionally uses the header's right edge
+    for numeric values that extend left across these boundaries.
 
     Args:
         header_positions: [(label, x0, x1), ...] sorted by x0
@@ -392,7 +393,8 @@ def find_table_bottom(page, first_col_bounds, header_bottom_y):
     return max(w["bottom"] for w in last_row)
 
 
-def extract_table_by_words(page, col_boundaries, header_labels, top_y, bottom_y):
+def extract_table_by_words(page, col_boundaries, header_labels, top_y, bottom_y,
+                           header_positions=None):
     """
     Extract table data by assigning words to columns based on x-position.
 
@@ -402,6 +404,9 @@ def extract_table_by_words(page, col_boundaries, header_labels, top_y, bottom_y)
         header_labels: [str, ...] column headers (parallel to col_boundaries)
         top_y: Top Y of data area (below header)
         bottom_y: Bottom Y of data area
+        header_positions: Optional detected header boxes. Integer values aligned
+            to a numeric column's right edge belong to that column even if their
+            centers extend into the previous column (e.g. 105 under week 1).
 
     Returns:
         list[list[str]] where each row has one string per column
@@ -438,6 +443,18 @@ def extract_table_by_words(page, col_boundaries, header_labels, top_y, bottom_y)
 
         for w in row_words:
             word_center = (w["x0"] + w["x1"]) / 2
+            aligned_columns = []
+            if (header_positions and re.fullmatch(r"-?\d+", w["text"])
+                    and col_boundaries[0][0] <= word_center <= col_boundaries[-1][1]):
+                # These reports right-align numbers with their headers. Preserve
+                # center-based placement unless one header confirms the column
+                # within 1 PDF point; never apply this rule to name words.
+                aligned_columns = [i for i, (_, _, right) in enumerate(header_positions)
+                                   if i > 0 and abs(w["x1"] - right) <= 1.0]
+            if len(aligned_columns) == 1:
+                col_idx = aligned_columns[0]
+                row[col_idx] = (row[col_idx] + " " + w["text"]).strip()
+                continue
             # Find which column this word belongs to
             for col_idx, (col_start, col_end) in enumerate(col_boundaries):
                 if col_start <= word_center <= col_end:
@@ -528,7 +545,8 @@ def extract_table_v2(page, title_text, expected_first_headers, expected_last_hea
         print(f"   [v2] Table body: y={header_bottom:.1f} to {table_bottom:.1f}")
 
     # Step 5: Extract table data
-    table = extract_table_by_words(page, col_boundaries, header_labels, header_bottom, table_bottom)
+    table = extract_table_by_words(page, col_boundaries, header_labels, header_bottom, table_bottom,
+                                   header_positions=header_positions)
 
     if debug:
         print(f"   [v2] Extracted {len(table)} data rows")
